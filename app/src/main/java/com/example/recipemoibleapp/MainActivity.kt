@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -19,11 +20,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +44,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.recipemoibleapp.ui.theme.RecipeMoibleAppTheme
 
 val SalmonRed = Color(0xFFD96868)
@@ -54,12 +61,31 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             RecipeMoibleAppTheme {
+                val navController = rememberNavController()
                 // Scaffold provides the basic visual layout structure
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     // Apply the innerPadding to the Box to avoid
                     // drawing behind system bars (status/navigation)
                     Box(modifier = Modifier.padding(innerPadding)) {
-                        LoginScreen()
+                        NavHost(
+                            navController = navController,
+                            startDestination = "login"
+                        ) {
+                            // Route for the Login Page
+                            composable("login") {
+                                LoginScreen(onLoginSuccess = {
+                                    // Navigate to 'home' and pop 'login' off the stack
+                                    navController.navigate("home") {
+                                        popUpTo("login") { inclusive = true }
+                                    }
+                                })
+                            }
+
+                            // Route for the Home Page
+                            composable("home") {
+                                HomeScreen()
+                            }
+                        }
                     }
                 }
             }
@@ -67,7 +93,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 @Composable
-fun LoginScreen() {
+fun LoginScreen(onLoginSuccess: () -> Unit) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -129,7 +155,7 @@ fun LoginScreen() {
                     )
 
                     Button(
-                        onClick = { /* TODO: Trigger Ktor Login */ },
+                        onClick = { onLoginSuccess() },
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = SageGreen)
                     ) {
@@ -144,6 +170,57 @@ fun LoginScreen() {
         }
     }
 }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HomeScreen() {
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Make IT", color = Color.White) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = DarkForestGreen
+                )
+            )
+        },
+        containerColor = OffWhite
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Welcome to your Kitchen!",
+                style = MaterialTheme.typography.headlineSmall,
+                color = DarkForestGreen
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "Start sharing your favorite recipes.")
+        }
+    }
+}
+@Composable
+fun AppNavigation() {
+    val navController = rememberNavController()
+
+    NavHost(navController = navController, startDestination = "login") {
+        // Route 1: Login
+        composable("login") {
+            LoginScreen(onLoginSuccess = {
+                navController.navigate("home")
+            })
+        }
+
+        // Route 2: Home
+        composable("home") {
+            HomeScreen()
+        }
+    }
+}
+
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
     Text(
@@ -156,6 +233,18 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Composable
 fun LoginScreenPreview() {
     RecipeMoibleAppTheme {
-        LoginScreen()
+        LoginScreen(onLoginSuccess = {})
+    }
+}
+
+@Preview(
+    showBackground = true,
+    showSystemUi = true,
+    device = "spec:width=411dp,height=891dp" // Optional: Forces a specific phone size
+)
+@Composable
+fun HomeScreenPreview() {
+    RecipeMoibleAppTheme {
+        HomeScreen()
     }
 }

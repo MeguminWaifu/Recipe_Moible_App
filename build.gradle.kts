@@ -4,3 +4,10 @@ plugins {
     alias(libs.plugins.kotlin.android) apply false
     alias(libs.plugins.kotlin.compose) apply false
 }
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "androidx.navigation") {
+            useVersion("2.8.0")
+        }
+    }
+}
