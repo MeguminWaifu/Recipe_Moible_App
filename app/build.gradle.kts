@@ -44,7 +44,8 @@ android {
 
 dependencies {
 
-//    implementation("androidx.navigation:navigation-compose:2.7.x")
+implementation(libs.androidx.navigation.runtime.android)
+    //    implementation("androidx.navigation:navigation-compose:2.7.x")
     val nav_version = "2.8.0"
     implementation("androidx.navigation:navigation-compose:$nav_version")
 
@@ -70,6 +71,8 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation("androidx.compose.material3:material3:<2.3.7>")
+    implementation("io.ktor:ktor-client-cio:2.3.7")
 //    implementation(libs.androidx.navigation.compose.jvmstubs)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

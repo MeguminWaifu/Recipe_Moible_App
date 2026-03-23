@@ -1,7 +1,10 @@
 package com.example.recipemoibleapp
 
+import android.content.Context
 import android.net.Uri
+import io.ktor.client.engine.cio.*
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -38,7 +41,10 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,6 +70,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -73,12 +80,22 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import client
+import io.ktor.client.*
+import io.ktor.http.*
+import io.ktor.client.call.*
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
 import coil.compose.AsyncImage
 import kotlinx.serialization.Serializable
 import com.example.recipemoibleapp.ui.theme.RecipeMoibleAppTheme
 import io.ktor.client.call.body
+import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.get
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import androidx.compose.material3.RadioButton
+
+
 
 val SalmonRed = Color(0xFFD96868)
 val OffWhite = Color(0xFFE6E4E2)
@@ -86,15 +103,21 @@ val SageGreen = Color(0xFF7B8E4D)
 val DarkForestGreen = Color(0xFF536136)
 val LogoBackground = Color(0xFFF4F0E5)
 
-@Serializable // Add this annotation!
+
+@Serializable
 data class Recipe(
-    val id: String, // phpMyAdmin usually uses Int IDs
     val foodName: String,
     val foodType: String,
-    val author: String,
-    val imageUrl: String,
+    val authorId: String,
+    val imgUrl: String,
+    val title: String,
+    val description: String,
+    val ingredients: List<String>,
+    val instructions: List<String>,
+    val difficulty: String,
     val isFavorite: Boolean = false
 )
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,10 +131,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToSignUp: () -> Unit) {
+    val mContext = LocalContext.current
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
 
     Box(
         modifier = Modifier
@@ -171,7 +198,18 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToSignUp: () -> Unit) {
                     )
 
                     Button(
-                        onClick = { onLoginSuccess() },
+                        onClick = {
+                            scope.launch {
+                                KTOR_Login(
+                                    context = mContext,
+                                    username = username,
+                                    password = password,
+                                    onLoginSuccess = {
+                                        onLoginSuccess()
+                                    }
+                                )
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp),
@@ -188,11 +226,13 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToSignUp: () -> Unit) {
         }
     }
 }
+
+
 @Composable
 fun SignUpScreen(onSignUpSuccess: () -> Unit, onBackToLogin: () -> Unit) {
+    val mContext = LocalContext.current
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    // Using a coroutine scope to trigger the Ktor network call
     val scope = rememberCoroutineScope()
 
     Box(
@@ -205,7 +245,6 @@ fun SignUpScreen(onSignUpSuccess: () -> Unit, onBackToLogin: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Logo Image
             Image(
                 painter = painterResource(id = R.drawable.make_it_logo_nobg),
                 contentDescription = "Make It Logo",
@@ -252,8 +291,9 @@ fun SignUpScreen(onSignUpSuccess: () -> Unit, onBackToLogin: () -> Unit) {
 
                     Button(
                         onClick = {
-                            // This is where you'll call your Ktor POST request
-                            // For now, it just triggers the success navigation
+                            scope.launch {
+                                KTOR_SignUp(mContext, username, password)
+                            }
                             onSignUpSuccess()
                         },
                         modifier = Modifier
@@ -264,7 +304,6 @@ fun SignUpScreen(onSignUpSuccess: () -> Unit, onBackToLogin: () -> Unit) {
                         Text("Sign Up", color = Color.White)
                     }
 
-                    // Optional: A small "Back" button if they clicked Sign Up by mistake
                     TextButton(onClick = onBackToLogin) {
                         Text("Back to Login", color = DarkForestGreen)
                     }
@@ -273,14 +312,50 @@ fun SignUpScreen(onSignUpSuccess: () -> Unit, onBackToLogin: () -> Unit) {
         }
     }
 }
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) { // Added navController parameter
     val recipeList = listOf(
-        Recipe("1", "Chicken Adobo", "Meat, Savory", "user123", "https://example.com/adobo.jpg"),
-        Recipe("2", "Beef Sinigang", "Soup, Sour", "chef_mcl", "https://example.com/sinigang.jpg"),
-        Recipe("3", "Pork Lumpia", "Appetizer, Fried", "lola_cooks", "https://example.com/lumpia.jpg")
+        Recipe(
+            foodName = "Chicken Adobo",
+            foodType = "Meat, Savory",
+            authorId = "user123",
+            imgUrl = "https://example.com/adobo.jpg",
+            title = "Classic Chicken Adobo",
+            description = "A savory Filipino dish made with chicken braised in soy sauce and vinegar.",
+            ingredients = listOf("Chicken", "Soy Sauce", "Vinegar", "Garlic", "Bay Leaves"),
+            instructions = listOf("Marinate chicken", "Simmer until tender", "Serve with rice"),
+            difficulty = "easy",
+            isFavorite = false
+        ),
+        Recipe(
+            foodName = "Beef Sinigang",
+            foodType = "Soup, Sour",
+            authorId = "chef_mcl",
+            imgUrl = "https://example.com/sinigang.jpg",
+            title = "Beef Sinigang",
+            description = "A sour tamarind-based soup with beef and vegetables.",
+            ingredients = listOf("Beef", "Tamarind", "Kangkong", "Radish", "Tomatoes"),
+            instructions = listOf("Boil beef until tender", "Add tamarind and vegetables", "Simmer and serve hot"),
+            difficulty = "medium",
+            isFavorite = false
+        ),
+        Recipe(
+            foodName = "Pork Lumpia",
+            foodType = "Appetizer, Fried",
+            authorId = "lola_cooks",
+            imgUrl = "https://example.com/lumpia.jpg",
+            title = "Crispy Pork Lumpia",
+            description = "Fried spring rolls filled with seasoned pork and vegetables.",
+            ingredients = listOf("Ground Pork", "Carrots", "Cabbage", "Spring Roll Wrappers"),
+            instructions = listOf("Prepare filling", "Wrap in lumpia wrappers", "Deep fry until golden"),
+            difficulty = "easy",
+            isFavorite = false
+        )
     )
+
 
     Scaffold(
         topBar = {
@@ -328,27 +403,31 @@ fun HomeScreen(navController: NavController) { // Added navController parameter
         }
     }
 }
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
+    val scope = rememberCoroutineScope()
+    val mContext = LocalContext.current
+
     var name by remember { mutableStateOf("") }
     var foodType by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var difficulty by remember { mutableStateOf("easy") }
+    var authorId by remember { mutableStateOf("") }
 
-    // Lists to hold the added items
     val ingredients = remember { mutableStateListOf<String>() }
     val steps = remember { mutableStateListOf<String>() }
-
-    // State to hold the URI of the selected image
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
 
-    // This is the "Launcher" that opens the gallery
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        selectedImageUri = uri
-    }
+    ) { uri: Uri? -> selectedImageUri = uri }
 
-    // Modal Control States
+    val difficulties = listOf("easy", "medium", "hard")
+    var expanded by remember { mutableStateOf(false) }
+
     var showIngredientModal by remember { mutableStateOf(false) }
     var showStepModal by remember { mutableStateOf(false) }
 
@@ -362,13 +441,63 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
         containerColor = OffWhite
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name of Dish") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = foodType, onValueChange = { foodType = it }, label = { Text("Type of Food") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name of Dish") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = foodType,
+                    onValueChange = { foodType = it },
+                    label = { Text("Type of Dish") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = authorId,
+                    onValueChange = { authorId = it },
+                    label = { Text("Author ID") },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
+
+            // Difficulty section wrapped in item{}
+            item {
+                Column {
+                    Text("Difficulty", style = MaterialTheme.typography.titleMedium)
+
+                    difficulties.forEach { option ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { difficulty = option }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            RadioButton(
+                                selected = (difficulty == option),
+                                onClick = { difficulty = option }
+                            )
+                            Text(option, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+
+
 
             // Ingredients Section
             item {
@@ -390,6 +519,7 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
                     }
                 }
             }
+
             item {
                 Button(
                     onClick = { showIngredientModal = true },
@@ -461,11 +591,48 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
                 }
             }
 
-            // Bottom Actions
+
+
             item {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text("Cancel", color = SalmonRed) }
-                    Button(onClick = { /* TODO: Ktor Post Logic */ }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = SalmonRed)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onCancel,
+                        modifier = Modifier.weight(1f)
+                    ) { Text("Cancel", color = SalmonRed) }
+                    Button(
+                        onClick = {
+                            val recipe = Recipe(
+                                foodName = name,
+                                foodType = foodType, // collect from UI or set default
+                                authorId = authorId,
+                                imgUrl = selectedImageUri?.toString() ?: "", // ✅ safe fallback
+                                title = name,
+                                description = description,
+                                ingredients = ingredients.toList(),
+                                instructions = steps.toList(),
+                                difficulty = difficulty,
+                                isFavorite = false
+                            )
+
+
+                            scope.launch {
+                                postRecipe(
+                                    context = mContext,
+                                    recipe = recipe,
+                                    onSuccess = { onPost(recipe) },
+                                    onError = { msg ->
+                                        Toast.makeText(mContext, "Failed: $msg", Toast.LENGTH_SHORT)
+                                            .show()
+                                    }
+                                )
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = SalmonRed)
+                    ) {
                         Text("Post")
                     }
                 }
@@ -490,6 +657,8 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
         )
     }
 }
+
+
 @Composable
 fun RecipeCard(
     recipe: Recipe,
@@ -508,14 +677,13 @@ fun RecipeCard(
             // IMAGE SECTION
             // Using Coil's AsyncImage (Make sure you have the Coil dependency!)
             AsyncImage(
-                model = recipe.imageUrl,
+                model = recipe.imgUrl,
                 contentDescription = recipe.foodName,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
                     .background(Color(0xFFE0E0E0)),
                 contentScale = ContentScale.Crop,
-                // Replace R.drawable.foodph with your actual placeholder filename
                 placeholder = painterResource(id = R.drawable.foodph),
                 error = painterResource(id = R.drawable.foodph)
             )
@@ -541,7 +709,7 @@ fun RecipeCard(
                         color = Color.DarkGray
                     )
                     Text(
-                        text = "By: ${recipe.author}", // Match your data class 'author'
+                        text = "By: ${recipe.authorId}", // Match your data class 'author'
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
@@ -558,6 +726,8 @@ fun RecipeCard(
         }
     }
 }
+
+
 @Composable
 fun InputModal(
     title: String,
@@ -613,43 +783,53 @@ fun InputModal(
         }
     )
 }
+
+
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = "login") {
+    NavHost(
+        navController = navController,
+        startDestination = "login" // This tells the app to show Login first
+    ) {
+        // Login Screen Route
         composable("login") {
             LoginScreen(
                 onLoginSuccess = { navController.navigate("home") },
-                onNavigateToSignUp = { navController.navigate("signup") } // Add this!
+                onNavigateToSignUp = { navController.navigate("signup") }
             )
         }
 
+        // Sign Up Screen Route
         composable("signup") {
             SignUpScreen(
-                onSignUpSuccess = {
-                    // Usually, you'd go to home or back to login after registering
-                    navController.navigate("login")
-                },
+                onSignUpSuccess = { navController.navigate("login") },
                 onBackToLogin = { navController.popBackStack() }
             )
         }
-        composable("create_recipe") {
-            CreateRecipeScreen(
-                onCancel = { navController.popBackStack() },
-                onPost = { /* Handle Ktor Post */ }
-            )
-        }
 
+        // Home Screen Route
         composable("home") {
             HomeScreen(navController = navController)
         }
+
+        // Create Recipe Route
+        composable("create_recipe") {
+            CreateRecipeScreen(
+                onCancel = { navController.popBackStack() },
+                onPost = { navController.navigate("home") }
+            )
+        }
     }
 }
-suspend fun getRecipes(): List<Recipe> {
+
+/*suspend fun getRecipes(): List<Recipe> {
     // Replace 10.0.2.2 with your PC's IP if using a real phone
-    return client.get("http://10.0.2.2:3000/api/recipes").body()
-}
+    return client.get("http://10.0.2.2:3000/api/recipes").body<List<Recipe>>()
+}*/
+
+
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
     Text(
@@ -658,6 +838,7 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
     )
 }
 
+
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun LoginScreenPreview() {
@@ -665,6 +846,7 @@ fun LoginScreenPreview() {
         LoginScreen(onLoginSuccess = {}, onNavigateToSignUp = {})
     }
 }
+
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
@@ -684,6 +866,7 @@ fun HomeScreenPreview() {
     }
 }
 
+
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
 fun CreateRecipeScreenPreview() {
@@ -696,6 +879,7 @@ fun CreateRecipeScreenPreview() {
     }
 }
 
+
 @Preview(showBackground = true)
 @Composable
 fun RecipeCardPreview() {
@@ -707,11 +891,16 @@ fun RecipeCardPreview() {
         ) {
             RecipeCard(
                 recipe = Recipe(
-                    id = "1",
                     foodName = "Classic Beef Adobo",
                     foodType = "Meat, Savory",
-                    author = "chef_mcl",
-                    imageUrl = ""
+                    authorId = "chef_mcl",
+                    imgUrl = "",
+                    title = "Classic Beef Adobo",
+                    description = "A savory Filipino dish made with beef braised in soy sauce and vinegar.",
+                    ingredients = listOf("Beef", "Soy Sauce", "Vinegar", "Garlic", "Bay Leaves"),
+                    instructions = listOf("Marinate beef", "Simmer until tender", "Serve with rice"),
+                    difficulty = "medium",
+                    isFavorite = false
                 ),
                 onFavoriteClick = {},
                 onCardClick = {}
@@ -721,11 +910,15 @@ fun RecipeCardPreview() {
 
             RecipeCard(
                 recipe = Recipe(
-                    id = "2",
                     foodName = "Sinigang na Baboy",
                     foodType = "Soup, Sour",
-                    author = "lola_cooks",
-                    imageUrl = "",
+                    authorId = "lola_cooks",
+                    imgUrl = "",
+                    title = "Sinigang na Baboy",
+                    description = "A sour tamarind-based soup with pork and vegetables.",
+                    ingredients = listOf("Pork", "Tamarind", "Kangkong", "Radish", "Tomatoes"),
+                    instructions = listOf("Boil pork until tender", "Add tamarind and vegetables", "Simmer and serve hot"),
+                    difficulty = "easy",
                     isFavorite = true
                 ),
                 onFavoriteClick = {},
@@ -734,6 +927,126 @@ fun RecipeCardPreview() {
         }
     }
 }
+
+
+suspend fun KTOR_SignUp(context: Context, username: String, password: String) {
+    val client = HttpClient(CIO)
+    try {
+        val role = "user"
+        val response: HttpResponse = client.get(
+            "http://192.168.100.69/REST/sign_up.php?" +
+                    "username=$username&password=$password&role=$role"
+        )
+        val stringBody = response.bodyAsText()
+        println("Status: ${response.status}")
+        println("Response: $stringBody")
+
+        val json = JSONObject(stringBody)
+        val status = json.optString("status")
+
+        if (status == "success") {
+            Toast.makeText(context, "Sign up successful!", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Sign up failed: $status", Toast.LENGTH_SHORT).show()
+        }
+
+    } catch (e: Exception) {
+        e.printStackTrace()
+        Toast.makeText(context, "Network error: ${e.message}", Toast.LENGTH_SHORT).show()
+    } finally {
+        client.close()
+    }
+}
+
+
+suspend fun KTOR_Login(
+    context: Context,
+    username: String,
+    password: String,
+    onLoginSuccess: () -> Unit
+) {
+    val client = HttpClient(CIO)
+    try {
+        val response: HttpResponse = client.post("http://192.168.100.69/REST/login.php") {
+            setBody(FormDataContent(Parameters.build {
+                append("username", username)
+                append("password", password)
+            }))
+        }
+
+        val stringBody = response.bodyAsText()
+        println("Status: ${response.status}")
+        println("Response: $stringBody")
+
+        if (stringBody.isNotBlank()) {
+            val json = JSONObject(stringBody)
+            val status = json.optString("status")
+            val message = json.optString("message")
+
+            if (status == "success") {
+                val role = json.optString("role")
+                Toast.makeText(context, "Login successful! Role: $role", Toast.LENGTH_SHORT).show()
+                onLoginSuccess()
+            } else {
+                Toast.makeText(context, "Login failed: $message", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(context, "Empty response from server", Toast.LENGTH_SHORT).show()
+        }
+
+    } catch (e: Exception) {
+        e.printStackTrace()
+        Toast.makeText(context, "Network error: ${e.message}", Toast.LENGTH_SHORT).show()
+    } finally {
+        client.close()
+    }
+}
+
+
+suspend fun postRecipe(
+    context: Context,
+    recipe: Recipe,
+    onSuccess: () -> Unit,
+    onError: (String) -> Unit
+) {
+    val client = HttpClient(CIO)
+    try {
+        val response: HttpResponse = client.post("http://192.168.100.69/REST/post_recipe.php") {
+            setBody(FormDataContent(Parameters.build {
+                append("food_name", recipe.foodName)
+                append("food_type", recipe.foodType)
+                append("author_id", recipe.authorId)
+                append("img_url", recipe.imgUrl)
+                append("title", recipe.title)
+                append("description", recipe.description)
+                append("ingredients", recipe.ingredients.joinToString(","))
+                append("instructions", recipe.instructions.joinToString(","))
+                append("difficulty", recipe.difficulty)
+                append("is_favorite", recipe.isFavorite.toString())
+            }))
+        }
+
+        val stringBody = response.bodyAsText()
+        val json = JSONObject(stringBody)
+        val status = json.optString("status")
+        val message = json.optString("message")
+
+        if (status == "success") {
+            Toast.makeText(context, "Recipe posted!", Toast.LENGTH_SHORT).show()
+            onSuccess()
+        } else {
+            onError(message)
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        onError("Network error: ${e.message}")
+    } finally {
+        client.close()
+    }
+}
+
+
+
 @Preview(showBackground = true)
 @Composable
 fun IngredientModalPreview() {
@@ -747,6 +1060,7 @@ fun IngredientModalPreview() {
         )
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable
