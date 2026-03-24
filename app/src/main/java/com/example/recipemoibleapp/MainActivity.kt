@@ -28,11 +28,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
@@ -49,6 +55,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -94,7 +102,10 @@ import io.ktor.client.request.get
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import androidx.compose.material3.RadioButton
-
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.compose.currentBackStackEntryAsState
+import io.ktor.client.plugins.HttpTimeout
 
 
 val SalmonRed = Color(0xFFD96868)
@@ -116,6 +127,20 @@ data class Recipe(
     val instructions: List<String>,
     val difficulty: String,
     val isFavorite: Boolean = false
+)
+
+data class NavItem(
+    val label: String,
+    val icon: ImageVector,
+    val route: String
+)
+
+val navItems = listOf(
+    NavItem("Profile", Icons.Default.Person, "profile"),
+    NavItem("Home", Icons.Default.Home, "home"),
+    NavItem("Search", Icons.Default.Search, "search"),
+    NavItem("Favorites", Icons.Default.Favorite, "favorites"),
+    NavItem("My Recipes", Icons.Default.List, "user_recipes") // New Item
 )
 
 
@@ -357,29 +382,24 @@ fun HomeScreen(navController: NavController) { // Added navController parameter
     )
 
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Make IT", color = Color.White) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkForestGreen)
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { navController.navigate("create_recipe") },
-                containerColor = SalmonRed,
-                contentColor = Color.White
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add")
-            }
-        },
-        containerColor = OffWhite
-    ) { padding ->
-        // LazyColumn is efficient for long lists
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(OffWhite)
+    ) {
+        // Header
+//        Box(
+//            modifier = Modifier
+//                .fillMaxWidth()
+//                .background(DarkForestGreen)
+//                .padding(top = 32.dp, bottom = 16.dp, start = 16.dp, end = 16.dp)
+//        ) {
+//            Text("Make IT", color = Color.White, style = MaterialTheme.typography.titleLarge)
+//        }
+        TopHeader()
+
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+            modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -392,14 +412,15 @@ fun HomeScreen(navController: NavController) { // Added navController parameter
                 )
             }
 
-            // Ensure 'recipeList' is defined before this block
             items(recipeList) { recipe ->
                 RecipeCard(
                     recipe = recipe,
-                    onFavoriteClick = { /* Handle favorite */ },
-                    onCardClick = { /* Handle navigation */ }
+                    onFavoriteClick = { /* Toggle Star */ },
+                    onCardClick = { /* Detail View */ }
                 )
             }
+            // Add extra space at the bottom so the floating nav doesn't cover the last card
+            item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
 }
@@ -658,7 +679,156 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
     }
 }
 
+@Composable
+fun ProfileScreen(navController: NavController, userName: String) {
+    // Wrap in a Column without extra padding at the top level
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(OffWhite)
+    ) {
+        TopHeader() // This will now sit correctly at the top
 
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Profile",
+                style = MaterialTheme.typography.headlineMedium,
+                color = DarkForestGreen
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Profile Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE0D7F7)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(50.dp),
+                        tint = Color(0xFF6750A4)
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(text = userName, style = MaterialTheme.typography.headlineSmall, color = DarkForestGreen)
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Navigation Cards
+            ProfileNavCard(
+                title = "Favorites",
+                subtitle = "Your liked recipes",
+                onClick = {
+                    navController.navigate("favorites") {
+                        // This prevents creating a massive stack of screens
+                        launchSingleTop = true
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            ProfileNavCard(
+                title = "Recipes Created",
+                subtitle = "Recipes you've shared",
+                onClick = {
+                    navController.navigate("user_recipes") {
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+    }
+}
+@Composable
+fun UserRecipesScreen(navController: NavController) {
+    Scaffold(
+        topBar = { TopHeader() },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { navController.navigate("create_recipe") },
+                containerColor = SalmonRed,
+                contentColor = Color.White
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add New Recipe")
+            }
+        },
+        containerColor = OffWhite
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "My Creations",
+                style = MaterialTheme.typography.headlineSmall,
+                color = DarkForestGreen,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            // This is where you will eventually call a function
+            // to load recipes where authorId == "Raphael"
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "You haven't posted any recipes yet.",
+                    color = Color.Gray,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ProfileNavCard(title: String, subtitle: String, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F0F7)), // Light grayish/purple
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Placeholder Icon Circle
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFEADDFF)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "A", color = Color(0xFF21005D))
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column {
+                Text(text = title, fontWeight = FontWeight.Bold)
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
 @Composable
 fun RecipeCard(
     recipe: Recipe,
@@ -783,46 +953,120 @@ fun InputModal(
         }
     )
 }
-
-
 @Composable
-fun AppNavigation() {
-    val navController = rememberNavController()
+fun FloatingBottomBar(navController: NavController) {
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
 
-    NavHost(
-        navController = navController,
-        startDestination = "login" // This tells the app to show Login first
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 20.dp) // Creates the floating effect
     ) {
-        // Login Screen Route
-        composable("login") {
-            LoginScreen(
-                onLoginSuccess = { navController.navigate("home") },
-                onNavigateToSignUp = { navController.navigate("signup") }
-            )
-        }
-
-        // Sign Up Screen Route
-        composable("signup") {
-            SignUpScreen(
-                onSignUpSuccess = { navController.navigate("login") },
-                onBackToLogin = { navController.popBackStack() }
-            )
-        }
-
-        // Home Screen Route
-        composable("home") {
-            HomeScreen(navController = navController)
-        }
-
-        // Create Recipe Route
-        composable("create_recipe") {
-            CreateRecipeScreen(
-                onCancel = { navController.popBackStack() },
-                onPost = { navController.navigate("home") }
-            )
+        NavigationBar(
+            containerColor = Color.White,
+            tonalElevation = 10.dp,
+            modifier = Modifier.clip(RoundedCornerShape(30.dp)) // Rounded edges
+        ) {
+            navItems.forEach { item ->
+                val isSelected = currentRoute == item.route
+                NavigationBarItem(
+                    selected = isSelected,
+                    alwaysShowLabel = false,
+                    onClick = {
+                        if (currentRoute != item.route) {
+                            navController.navigate(item.route) {
+                                popUpTo("home") { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.label,
+                            tint = if (isSelected) SageGreen else Color.Gray
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = item.label,
+                            color = if (isSelected) DarkForestGreen else Color.Gray,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1
+                        )
+                    }
+                )
+            }
         }
     }
 }
+
+@Composable
+fun TopHeader(title: String = "Make IT") {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DarkForestGreen)
+            .padding(top = 32.dp, bottom = 16.dp, start = 16.dp, end = 16.dp)
+    ) {
+        Text(title, color = Color.White, style = MaterialTheme.typography.titleLarge)
+    }
+}
+@Composable
+fun AppNavigation() {
+    val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val showBottomBar = currentRoute in listOf("home", "profile", "favorites", "search", "user_recipes")
+
+    Scaffold(
+        bottomBar = {
+            if (showBottomBar) {
+                FloatingBottomBar(navController)
+            }
+        }
+    ) { paddingValues ->
+        NavHost(
+            navController = navController,
+            startDestination = "login",
+            modifier = Modifier.padding(paddingValues)
+        ) {
+            composable("login") {
+                LoginScreen(
+                    onLoginSuccess = { navController.navigate("home") },
+                    onNavigateToSignUp = { navController.navigate("signup") }
+                )
+            }
+            composable("signup") {
+                SignUpScreen(
+                    onSignUpSuccess = { navController.navigate("login") },
+                    onBackToLogin = { navController.popBackStack() }
+                )
+            }
+            composable("home") {
+                HomeScreen(navController = navController)
+            }
+            composable("profile") {
+                ProfileScreen(navController = navController, userName = "Raphael")
+            }
+            composable("create_recipe") {
+                CreateRecipeScreen(
+                    onCancel = { navController.popBackStack() },
+                    onPost = { navController.navigate("user_recipes") } // Navigate to your list after posting
+                )
+            }
+            composable("user_recipes") {
+                UserRecipesScreen(navController = navController)
+            }
+            composable("favorites") { /* Placeholder */ }
+            composable("search") { /* Placeholder */ }
+        }
+    }
+}
+
+
 
 /*suspend fun getRecipes(): List<Recipe> {
     // Replace 10.0.2.2 with your PC's IP if using a real phone
@@ -878,8 +1122,25 @@ fun CreateRecipeScreenPreview() {
         )
     }
 }
+@Preview(showSystemUi = true)
+@Composable
+fun ProfileScreenPreview() {
+    RecipeMoibleAppTheme {
+        val navController = rememberNavController()
+        // Mocking the screen inside a Column to simulate the background
 
+            ProfileScreen(navController = navController, userName = "Raphael Correa")
 
+    }
+}
+@Preview(showSystemUi = true)
+@Composable
+fun UserRecipesScreenPreview() {
+    RecipeMoibleAppTheme {
+        val navController = rememberNavController()
+        UserRecipesScreen(navController = navController)
+    }
+}
 @Preview(showBackground = true)
 @Composable
 fun RecipeCardPreview() {
@@ -927,27 +1188,51 @@ fun RecipeCardPreview() {
         }
     }
 }
+@Preview(showBackground = true)
+@Composable
+fun FloatingBottomBarPreview() {
+    RecipeMoibleAppTheme {
+        val navController = rememberNavController()
+        Box(modifier = Modifier.fillMaxSize().background(OffWhite)) {
+            FloatingBottomBar(navController = navController)
+        }
+    }
+}
 
-
+const val BASE_URL = "10.0.2.2/REST"
 suspend fun KTOR_SignUp(context: Context, username: String, password: String) {
-    val client = HttpClient(CIO)
+    val client = HttpClient(CIO) {
+        install(HttpTimeout) {
+            requestTimeoutMillis = 30000
+            connectTimeoutMillis = 30000
+        }
+    }
     try {
-        val role = "user"
-        val response: HttpResponse = client.get(
-            "http://192.168.100.69/REST/sign_up.php?" +
-                    "username=$username&password=$password&role=$role"
-        )
-        val stringBody = response.bodyAsText()
-        println("Status: ${response.status}")
-        println("Response: $stringBody")
+        // 1. CLEAN URL: No question marks or variables in the string
+        val url = "http://$BASE_URL/sign_up.php"
 
+        val response: HttpResponse = client.post(url) {
+            // 2. SET CONTENT TYPE: Tells PHP to expect POST form data
+            contentType(ContentType.Application.FormUrlEncoded)
+
+            // 3. SEND BODY: This populates $_POST on the server
+            setBody(FormDataContent(Parameters.build {
+                append("username", username)
+                append("password", password)
+                append("role", "user")
+            }))
+        }
+
+        val stringBody = response.bodyAsText()
         val json = JSONObject(stringBody)
         val status = json.optString("status")
+        val message = json.optString("message") // Get the error message from PHP
 
         if (status == "success") {
             Toast.makeText(context, "Sign up successful!", Toast.LENGTH_SHORT).show()
         } else {
-            Toast.makeText(context, "Sign up failed: $status", Toast.LENGTH_SHORT).show()
+            // Show the actual message (e.g., "Username already taken")
+            Toast.makeText(context, "Registration Failed: $message", Toast.LENGTH_SHORT).show()
         }
 
     } catch (e: Exception) {
@@ -965,9 +1250,25 @@ suspend fun KTOR_Login(
     password: String,
     onLoginSuccess: () -> Unit
 ) {
-    val client = HttpClient(CIO)
+    val client = HttpClient(CIO) {
+        engine {
+            // This is CRITICAL. Force HTTP 1.1 to match XAMPP's Apache
+            https {
+                // Not needed for http, but good to have engine-level config
+            }
+        }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 20000
+            connectTimeoutMillis = 20000
+            socketTimeoutMillis = 20000
+        }
+    }
     try {
-        val response: HttpResponse = client.post("http://192.168.100.69/REST/login.php") {
+        val response: HttpResponse = client.post("http://$BASE_URL/login.php") {
+            contentType(ContentType.Application.FormUrlEncoded)
+            header("Connection", "close")
+            header("Accept", "application/json")
+            header("User-Agent", "Mozilla/5.0")
             setBody(FormDataContent(Parameters.build {
                 append("username", username)
                 append("password", password)
@@ -985,7 +1286,13 @@ suspend fun KTOR_Login(
 
             if (status == "success") {
                 val role = json.optString("role")
-                Toast.makeText(context, "Login successful! Role: $role", Toast.LENGTH_SHORT).show()
+                val userId = json.optInt("id") // Extract the ID from PHP
+
+                // Save ID locally for "My Recipes" and "Favorites"
+                val sharedPref = context.getSharedPreferences("UserSession", Context.MODE_PRIVATE)
+                sharedPref.edit().putInt("user_id", userId).apply()
+
+                Toast.makeText(context, "Welcome back, $username!", Toast.LENGTH_SHORT).show()
                 onLoginSuccess()
             } else {
                 Toast.makeText(context, "Login failed: $message", Toast.LENGTH_SHORT).show()
@@ -1011,7 +1318,7 @@ suspend fun postRecipe(
 ) {
     val client = HttpClient(CIO)
     try {
-        val response: HttpResponse = client.post("http://192.168.100.69/REST/post_recipe.php") {
+        val response: HttpResponse = client.post("http://$BASE_URL/post_recipe.php") {
             setBody(FormDataContent(Parameters.build {
                 append("food_name", recipe.foodName)
                 append("food_type", recipe.foodType)
