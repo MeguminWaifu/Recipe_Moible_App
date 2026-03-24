@@ -466,12 +466,12 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
                     label = { Text("Description") },
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(
-                    value = authorId,
-                    onValueChange = { authorId = it },
-                    label = { Text("Author ID") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+//                OutlinedTextField(
+//                    value = authorId,
+//                    onValueChange = { authorId = it },
+//                    label = { Text("Author ID") },
+//                    modifier = Modifier.fillMaxWidth()
+//                )
             }
 
             // Difficulty section wrapped in item{}
