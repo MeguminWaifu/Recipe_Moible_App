@@ -425,7 +425,7 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? -> selectedImageUri = uri }
 
-    val difficulties = listOf("easy", "medium", "hard")
+    val difficulties = listOf("Easy", "Medium", "Hard")
     var expanded by remember { mutableStateOf(false) }
 
     var showIngredientModal by remember { mutableStateOf(false) }
@@ -477,7 +477,7 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
             // Difficulty section wrapped in item{}
             item {
                 Column {
-                    Text("Difficulty", style = MaterialTheme.typography.titleMedium)
+                    Text("Difficulty", fontWeight = FontWeight.Bold, color = DarkForestGreen)
 
                     difficulties.forEach { option ->
                         Row(
@@ -491,7 +491,7 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
                                 selected = (difficulty == option),
                                 onClick = { difficulty = option }
                             )
-                            Text(option, style = MaterialTheme.typography.bodyMedium)
+                            Text(option, fontWeight = FontWeight.Bold, color = DarkForestGreen)
                         }
                     }
                 }
