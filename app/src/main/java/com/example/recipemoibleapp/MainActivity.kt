@@ -368,6 +368,17 @@ fun HomeScreen(navController: NavController, onLogout: () -> Unit) { // Added na
     var recipeList by remember { mutableStateOf<List<Recipe>>(emptyList()) }
     val scope = rememberCoroutineScope()
 
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
+    // Call the reusable composable here
+    LogoutDialog(
+        showDialog = showLogoutDialog,
+        onDismiss = { showLogoutDialog = false },
+        onConfirm = {
+            showLogoutDialog = false
+            onLogout()
+        }
+    )
 
     LaunchedEffect(Unit) {
         recipeList = fetchAllRecipes(currentUserId)
@@ -386,7 +397,8 @@ fun HomeScreen(navController: NavController, onLogout: () -> Unit) { // Added na
 //        ) {
 //            Text("Make IT", color = Color.White, style = MaterialTheme.typography.titleLarge)
 //        }
-        TopHeader(onLogoutClick = onLogout)
+        TopHeader(onLogoutClick = { showLogoutDialog = true }) // Trigger the DIALOG, not the logout yet
+
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -694,13 +706,24 @@ fun CreateRecipeScreen(currentAuthorId: Int,onCancel: () -> Unit, onPost: (Recip
 
 @Composable
 fun ProfileScreen(navController: NavController, userName: String, onLogout: () -> Unit) {
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
+    // Call the reusable composable here
+    LogoutDialog(
+        showDialog = showLogoutDialog,
+        onDismiss = { showLogoutDialog = false },
+        onConfirm = {
+            showLogoutDialog = false
+            onLogout()
+        }
+    )
     // Wrap in a Column without extra padding at the top level
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(OffWhite)
     ) {
-        TopHeader(onLogoutClick = onLogout) // This will now sit correctly at the top
+        TopHeader(onLogoutClick = { showLogoutDialog = true }) // This will now sit correctly at the top
 
         Column(
             modifier = Modifier
@@ -747,8 +770,12 @@ fun ProfileScreen(navController: NavController, userName: String, onLogout: () -
                 subtitle = "Your liked recipes",
                 onClick = {
                     navController.navigate("favorites") {
-                        // This prevents creating a massive stack of screens
+                        // Pop up to the home screen to avoid building a huge stack
+                        popUpTo("home") { saveState = true }
+                        // Avoid multiple copies of the same destination
                         launchSingleTop = true
+                        // Restore state when re-selecting a previously selected item
+                        restoreState = true
                     }
                 }
             )
@@ -758,7 +785,12 @@ fun ProfileScreen(navController: NavController, userName: String, onLogout: () -
                 subtitle = "Recipes you've shared",
                 onClick = {
                     navController.navigate("user_recipes") {
+                        // Pop up to the home screen to avoid building a huge stack
+                        popUpTo("home") { saveState = true }
+                        // Avoid multiple copies of the same destination
                         launchSingleTop = true
+                        // Restore state when re-selecting a previously selected item
+                        restoreState = true
                     }
                 }
             )
@@ -776,13 +808,23 @@ fun UserRecipesScreen(navController: NavController, onLogout: () -> Unit) {
 
     // Filter recipes where the author matches the current logged-in user
     val myRecipes = allRecipes.filter { it.authorId == currentUserId.toString() }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
+    // Call the reusable composable here
+    LogoutDialog(
+        showDialog = showLogoutDialog,
+        onDismiss = { showLogoutDialog = false },
+        onConfirm = {
+            showLogoutDialog = false
+            onLogout()
+        }
+    )
     LaunchedEffect(Unit) {
         allRecipes = fetchAllRecipes(currentUserId)
     }
 
     Scaffold(
-        topBar = { TopHeader(onLogoutClick = onLogout) },
+        topBar = { TopHeader(onLogoutClick = { showLogoutDialog = true }) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navController.navigate("create_recipe") },
@@ -839,13 +881,23 @@ fun FavoritesScreen(navController: NavController, onLogout: () -> Unit) {
 
     var allRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
     val favoriteRecipes = allRecipes.filter { it.isFavorite }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
+    // Call the reusable composable here
+    LogoutDialog(
+        showDialog = showLogoutDialog,
+        onDismiss = { showLogoutDialog = false },
+        onConfirm = {
+            showLogoutDialog = false
+            onLogout()
+        }
+    )
     LaunchedEffect(Unit) {
         allRecipes = fetchAllRecipes(currentUserId)
     }
 
     Column(modifier = Modifier.fillMaxSize().background(OffWhite)) {
-        TopHeader(onLogoutClick = onLogout)
+        TopHeader(onLogoutClick = { showLogoutDialog = true })
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
@@ -899,7 +951,17 @@ fun SearchScreen(navController: NavController, onLogout: () -> Unit) {
         recipe.foodName.contains(searchQuery, ignoreCase = true) ||
                 recipe.authorName.contains(searchQuery, ignoreCase = true)
     }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
+    // Call the reusable composable here
+    LogoutDialog(
+        showDialog = showLogoutDialog,
+        onDismiss = { showLogoutDialog = false },
+        onConfirm = {
+            showLogoutDialog = false
+            onLogout()
+        }
+    )
     LaunchedEffect(Unit) {
         allRecipes = fetchAllRecipes(currentUserId)
     }
@@ -909,7 +971,7 @@ fun SearchScreen(navController: NavController, onLogout: () -> Unit) {
             .fillMaxSize()
             .background(OffWhite)
     ) {
-        TopHeader(onLogoutClick = onLogout)
+        TopHeader(onLogoutClick = { showLogoutDialog = true })
 
         // Search Bar Section
         OutlinedTextField(
@@ -1097,6 +1159,36 @@ fun RecipeDetailScreen(recipeId: Int, navController: NavController) {
         }
     } ?: Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(color = SalmonRed)
+    }
+}
+@Composable
+fun LogoutDialog(
+    showDialog: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = {
+                Text("Logout", style = MaterialTheme.typography.headlineSmall, color = DarkForestGreen)
+            },
+            text = {
+                Text("Are you sure you want to log out? You will need to sign in again to access your recipes.")
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirm) {
+                    Text("Logout", color = SalmonRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            },
+            containerColor = OffWhite,
+            shape = RoundedCornerShape(28.dp) // Standard M3 dialog rounding
+        )
     }
 }
 @Composable
