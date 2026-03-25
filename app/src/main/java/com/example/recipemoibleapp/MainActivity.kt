@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
@@ -42,11 +43,13 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -102,6 +105,8 @@ import io.ktor.client.request.get
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -111,6 +116,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
+import androidx.compose.material3.TopAppBar
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 
 val SalmonRed = Color(0xFFD96868)
@@ -122,9 +132,11 @@ val LogoBackground = Color(0xFFF4F0E5)
 
 @Serializable
 data class Recipe(
+    val id: Int=0,
     val foodName: String,
     val foodType: String,
     val authorId: String,
+    val authorName: String = "",
     val imgUrl: String,
     val title: String,
     val description: String,
@@ -347,49 +359,16 @@ fun SignUpScreen(onSignUpSuccess: () -> Unit, onBackToLogin: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) { // Added navController parameter\
+    val context = LocalContext.current
+
+    val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
+    val currentUserId = sharedPref.getInt("user_id", -1)
     var recipeList by remember { mutableStateOf<List<Recipe>>(emptyList()) }
     val scope = rememberCoroutineScope()
-//    val recipeList = listOf(
-//        Recipe(
-//            foodName = "Chicken Adobo",
-//            foodType = "Meat, Savory",
-//            authorId = "user123",
-//            imgUrl = "https://example.com/adobo.jpg",
-//            title = "Classic Chicken Adobo",
-//            description = "A savory Filipino dish made with chicken braised in soy sauce and vinegar.",
-//            ingredients = listOf("Chicken", "Soy Sauce", "Vinegar", "Garlic", "Bay Leaves"),
-//            instructions = listOf("Marinate chicken", "Simmer until tender", "Serve with rice"),
-//            difficulty = "easy",
-//            isFavorite = false
-//        ),
-//        Recipe(
-//            foodName = "Beef Sinigang",
-//            foodType = "Soup, Sour",
-//            authorId = "chef_mcl",
-//            imgUrl = "https://example.com/sinigang.jpg",
-//            title = "Beef Sinigang",
-//            description = "A sour tamarind-based soup with beef and vegetables.",
-//            ingredients = listOf("Beef", "Tamarind", "Kangkong", "Radish", "Tomatoes"),
-//            instructions = listOf("Boil beef until tender", "Add tamarind and vegetables", "Simmer and serve hot"),
-//            difficulty = "medium",
-//            isFavorite = false
-//        ),
-//        Recipe(
-//            foodName = "Pork Lumpia",
-//            foodType = "Appetizer, Fried",
-//            authorId = "lola_cooks",
-//            imgUrl = "https://example.com/lumpia.jpg",
-//            title = "Crispy Pork Lumpia",
-//            description = "Fried spring rolls filled with seasoned pork and vegetables.",
-//            ingredients = listOf("Ground Pork", "Carrots", "Cabbage", "Spring Roll Wrappers"),
-//            instructions = listOf("Prepare filling", "Wrap in lumpia wrappers", "Deep fry until golden"),
-//            difficulty = "easy",
-//            isFavorite = false
-//        )
-//    )
+
 
     LaunchedEffect(Unit) {
-        recipeList = fetchAllRecipes()
+        recipeList = fetchAllRecipes(currentUserId)
     }
     Column(
         modifier = Modifier
@@ -428,8 +407,25 @@ fun HomeScreen(navController: NavController) { // Added navController parameter\
             items(recipeList) { recipe ->
                 RecipeCard(
                     recipe = recipe,
-                    onFavoriteClick = { /* Toggle Star */ },
-                    onCardClick = { /* Detail View */ }
+                    onFavoriteClick = {
+                        scope.launch {
+                            // userId and recipe.id must match what the PHP script expects
+                            val action = toggleFavorite(context, currentUserId, recipe.id)
+
+                            if (action != null) {
+                                // Create a brand new list using .map to force the UI to refresh
+                                val updatedList = recipeList.map { existingRecipe ->
+                                    if (existingRecipe.id == recipe.id) {
+                                        existingRecipe.copy(isFavorite = (action == "favorited"))
+                                    } else {
+                                        existingRecipe
+                                    }
+                                }
+                                recipeList = updatedList // Assigning the new list triggers the UI update
+                            }
+                        }
+                    },
+                    onCardClick = { navController.navigate("recipe_detail/${recipe.id}") }
                 )
             }
             // Add extra space at the bottom so the floating nav doesn't cover the last card
@@ -639,6 +635,7 @@ fun CreateRecipeScreen(currentAuthorId: Int,onCancel: () -> Unit, onPost: (Recip
                     Button(
                         onClick = {
                             val recipe = Recipe(
+//                                id = item.getInt("id"),
                                 foodName = name,
                                 foodType = foodType, // collect from UI or set default
                                 authorId = currentAuthorId.toString(),
@@ -768,6 +765,20 @@ fun ProfileScreen(navController: NavController, userName: String) {
 }
 @Composable
 fun UserRecipesScreen(navController: NavController) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
+    val currentUserId = sharedPref.getInt("user_id", -1)
+
+    var allRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
+
+    // Filter recipes where the author matches the current logged-in user
+    val myRecipes = allRecipes.filter { it.authorId == currentUserId.toString() }
+
+    LaunchedEffect(Unit) {
+        allRecipes = fetchAllRecipes(currentUserId)
+    }
+
     Scaffold(
         topBar = { TopHeader() },
         floatingActionButton = {
@@ -775,41 +786,317 @@ fun UserRecipesScreen(navController: NavController) {
                 onClick = { navController.navigate("create_recipe") },
                 containerColor = SalmonRed,
                 contentColor = Color.White
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Add New Recipe")
-            }
+            ) { Icon(Icons.Default.Add, contentDescription = "Add") }
         },
         containerColor = OffWhite
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "My Creations",
-                style = MaterialTheme.typography.headlineSmall,
-                color = DarkForestGreen,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
+            item {
+                Text("My Creations", style = MaterialTheme.typography.headlineSmall, color = DarkForestGreen)
+            }
 
-            // This is where you will eventually call a function
-            // to load recipes where authorId == "Raphael"
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "You haven't posted any recipes yet.",
-                    color = Color.Gray,
-                    style = MaterialTheme.typography.bodyMedium
+            if (myRecipes.isEmpty()) {
+                item {
+                    Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("You haven't posted any recipes yet.", color = Color.Gray)
+                    }
+                }
+            }
+
+            items(myRecipes) { recipe ->
+                RecipeCard(
+                    recipe = recipe,
+                    onFavoriteClick = {
+                        scope.launch {
+                            val action = toggleFavorite(context, currentUserId, recipe.id)
+                            if (action != null) {
+                                allRecipes = allRecipes.map {
+                                    if (it.id == recipe.id) it.copy(isFavorite = (action == "favorited")) else it
+                                }
+                            }
+                        }
+                    },
+                    onCardClick = { navController.navigate("recipe_detail/${recipe.id}") }
                 )
             }
+            item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
 }
 
+@Composable
+fun FavoritesScreen(navController: NavController) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
+    val currentUserId = sharedPref.getInt("user_id", -1)
+
+    var allRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
+    val favoriteRecipes = allRecipes.filter { it.isFavorite }
+
+    LaunchedEffect(Unit) {
+        allRecipes = fetchAllRecipes(currentUserId)
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(OffWhite)) {
+        TopHeader()
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Text("Saved Recipes", style = MaterialTheme.typography.headlineSmall, color = DarkForestGreen)
+            }
+
+            if (favoriteRecipes.isEmpty()) {
+                item {
+                    Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No favorites saved yet.", color = Color.Gray)
+                    }
+                }
+            }
+
+            items(favoriteRecipes) { recipe ->
+                RecipeCard(
+                    recipe = recipe,
+                    onFavoriteClick = {
+                        scope.launch {
+                            val action = toggleFavorite(context, currentUserId, recipe.id)
+                            if (action != null) {
+                                allRecipes = allRecipes.map {
+                                    if (it.id == recipe.id) it.copy(isFavorite = (action == "favorited")) else it
+                                }
+                            }
+                        }
+                    },
+                    onCardClick = { navController.navigate("recipe_detail/${recipe.id}") }
+                )
+            }
+            item { Spacer(modifier = Modifier.height(80.dp)) }
+        }
+    }
+}
+
+@Composable
+fun SearchScreen(navController: NavController) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
+    val currentUserId = sharedPref.getInt("user_id", -1)
+
+    var searchQuery by remember { mutableStateOf("") }
+    var allRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
+
+    // Logic: Filter by Food Name OR Author Name based on the search query
+    val filteredRecipes = allRecipes.filter { recipe ->
+        recipe.foodName.contains(searchQuery, ignoreCase = true) ||
+                recipe.authorName.contains(searchQuery, ignoreCase = true)
+    }
+
+    LaunchedEffect(Unit) {
+        allRecipes = fetchAllRecipes(currentUserId)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(OffWhite)
+    ) {
+        TopHeader()
+
+        // Search Bar Section
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            placeholder = { Text("Search recipes or authors...") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Clear", tint = SalmonRed)
+                    }
+                }
+            },
+            shape = RoundedCornerShape(12.dp),
+            singleLine = true
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (filteredRecipes.isEmpty() && searchQuery.isNotEmpty()) {
+                item {
+                    Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No results found for \"$searchQuery\"", color = Color.Gray)
+                    }
+                }
+            }
+
+            items(filteredRecipes) { recipe ->
+                RecipeCard(
+                    recipe = recipe,
+                    onFavoriteClick = {
+                        scope.launch {
+                            val action = toggleFavorite(context, currentUserId, recipe.id)
+                            if (action != null) {
+                                allRecipes = allRecipes.map {
+                                    if (it.id == recipe.id) it.copy(isFavorite = (action == "favorited")) else it
+                                }
+                            }
+                        }
+                    },
+                    onCardClick = { navController.navigate("recipe_detail/${recipe.id}") }
+                )
+            }
+            item { Spacer(modifier = Modifier.height(80.dp)) }
+        }
+    }
+}
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RecipeDetailScreen(recipeId: Int, navController: NavController) {
+    val context = LocalContext.current
+    val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
+    val currentUserId = sharedPref.getInt("user_id", -1)
+
+    var recipe by remember { mutableStateOf<Recipe?>(null) }
+
+    // Fetch the specific recipe details
+    LaunchedEffect(recipeId) {
+        val all = fetchAllRecipes(currentUserId)
+        recipe = all.find { it.id == recipeId }
+    }
+
+    recipe?.let { r ->
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(r.foodName, color = DarkForestGreen) },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = DarkForestGreen
+                            )
+                        }
+                    },
+                    // Use colors instead of backgroundColor
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = OffWhite
+                    )
+                    // Elevation is now typically handled via the 'scrollBehavior' or
+                    // wrapping the AppBar in a Surface with tonalElevation
+                )
+            }
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(OffWhite)
+            ) {
+                // 1. Large Image Header
+                item {
+                    AsyncImage(
+                        model = r.imgUrl,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(250.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+
+                // 2. Info Section (Title, Author, Difficulty)
+                item {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(r.title, style = MaterialTheme.typography.headlineMedium, color = DarkForestGreen)
+                        Text("By ${r.authorName}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+
+                        Row(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Difficulty Chip
+                            SuggestionChip(
+                                onClick = { },
+                                label = { Text(r.difficulty.uppercase()) },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = SalmonRed,
+                                    labelColor = Color.White
+                                ),
+                                border = null
+                            )
+
+                            // Food Type Chip
+                            SuggestionChip(
+                                onClick = { },
+                                label = { Text(r.foodType) },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    containerColor = DarkForestGreen,
+                                    labelColor = Color.White
+                                ),
+                                border = null
+                            )
+                        }
+
+                        Text(
+                            text = r.description,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                }
+
+                // 3. Ingredients Section
+                item {
+                    Text("Ingredients",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        color = DarkForestGreen
+                    )
+                }
+                items(r.ingredients) { ingredient ->
+                    Row(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).background(SalmonRed, CircleShape))
+                        Spacer(Modifier.width(12.dp))
+                        Text(ingredient, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+
+                // 4. Instructions Section
+                item {
+                    Text("Instructions",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+                        color = DarkForestGreen
+                    )
+                }
+                itemsIndexed(r.instructions) { index, step ->
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text("Step ${index + 1}", color = SalmonRed, style = MaterialTheme.typography.labelLarge)
+                        Text(step, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+
+                item { Spacer(Modifier.height(32.dp)) }
+            }
+        }
+    } ?: Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(color = SalmonRed)
+    }
+}
 @Composable
 fun ProfileNavCard(title: String, subtitle: String, onClick: () -> Unit) {
     Card(
@@ -893,7 +1180,7 @@ fun RecipeCard(
                         color = Color.DarkGray
                     )
                     Text(
-                        text = "By: ${recipe.authorId}", // Match your data class 'author'
+                        text = "By: ${recipe.authorName}", // Match your data class 'author'
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
@@ -904,6 +1191,7 @@ fun RecipeCard(
                         imageVector = if (recipe.isFavorite) Icons.Filled.Star else Icons.Outlined.Star,
                         contentDescription = "Favorite",
                         tint = if (recipe.isFavorite) SalmonRed else Color.DarkGray
+                        // Ensure no Modifier.clickable is here as it will conflict with IconButton
                     )
                 }
             }
@@ -1079,8 +1367,22 @@ fun AppNavigation() {
             composable("user_recipes") {
                 UserRecipesScreen(navController = navController)
             }
-            composable("favorites") { /* Placeholder */ }
-            composable("search") { /* Placeholder */ }
+            composable("favorites") {
+                FavoritesScreen(navController = navController)
+            }
+            composable("search") {
+                SearchScreen(navController = navController)
+            }
+            composable(
+                route = "recipe_detail/{recipeId}",
+                arguments = listOf(navArgument("recipeId") { type = NavType.IntType })
+            ) { backStackEntry ->
+                // Extract the ID from the arguments
+                val recipeId = backStackEntry.arguments?.getInt("recipeId") ?: 0
+
+                // Pass the ID and the navController to the Detail Screen
+                RecipeDetailScreen(recipeId = recipeId, navController = navController)
+            }
         }
     }
 }
@@ -1128,7 +1430,108 @@ fun HomeScreenPreview() {
         HomeScreen(navController = rememberNavController())
     }
 }
+@OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun RecipeDetailScreenPreview() {
+    RecipeMoibleAppTheme {
+        // Mock data for the preview
+        val mockRecipe = Recipe(
+            id = 1,
+            foodName = "Classic Chicken Adobo",
+            foodType = "Meat",
+            authorId = "1",
+            authorName = "Raphael Correa",
+            imgUrl = "", // In preview, this will show a placeholder
+            title = "Savory Filipino Adobo",
+            description = "A classic Filipino stew made with chicken, soy sauce, vinegar, and garlic. Perfect with steamed rice.",
+            ingredients = listOf("1kg Chicken", "1/2 cup Soy Sauce", "1/3 cup Vinegar", "5 cloves Garlic", "2 Bay Leaves"),
+            instructions = listOf(
+                "Marinate chicken in soy sauce and garlic for 30 minutes.",
+                "Sauté garlic in a pan, then add the chicken until browned.",
+                "Pour in the marinade and add bay leaves. Simmer for 20 minutes.",
+                "Add vinegar and let it boil without stirring.",
+                "Serve hot with rice."
+            ),
+            difficulty = "Easy",
+            isFavorite = true
+        )
 
+        // UI Mockup for Preview
+        Scaffold(
+            topBar = {
+                // Manually drawing the TopAppBar for the preview
+                TopAppBar(
+                    title = { Text(mockRecipe.foodName, color = DarkForestGreen) },
+                    navigationIcon = {
+                        IconButton(onClick = { }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = null, tint = DarkForestGreen)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = OffWhite)
+                )
+            }
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(OffWhite)
+            ) {
+                // Mock Image Placeholder
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(250.dp)
+                            .background(Color.LightGray),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Recipe Image Placeholder", color = Color.DarkGray)
+                    }
+                }
+
+                // Info Section
+                item {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(mockRecipe.title, style = MaterialTheme.typography.headlineMedium, color = DarkForestGreen)
+                        Text("By ${mockRecipe.authorName}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+
+                        Row(modifier = Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SuggestionChip(
+                                onClick = {},
+                                label = { Text(mockRecipe.difficulty) },
+                                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = SalmonRed, labelColor = Color.White)
+                            )
+                            SuggestionChip(
+                                onClick = {},
+                                label = { Text(mockRecipe.foodType) },
+                                colors = SuggestionChipDefaults.suggestionChipColors(containerColor = DarkForestGreen, labelColor = Color.White)
+                            )
+                        }
+                        Text(mockRecipe.description, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+
+                // Ingredients
+                item {
+                    Text("Ingredients",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(16.dp),
+                        color = DarkForestGreen
+                    )
+                }
+                items(mockRecipe.ingredients) { ingredient ->
+                    Row(modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).background(SalmonRed, CircleShape))
+                        Spacer(Modifier.width(12.dp))
+                        Text(ingredient)
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Preview(showBackground = true, showSystemUi = true)
 @Composable
@@ -1161,6 +1564,14 @@ fun UserRecipesScreenPreview() {
         UserRecipesScreen(navController = navController)
     }
 }
+@Preview(showSystemUi = true)
+@Composable
+fun FavoritesScreenPreview() {
+    RecipeMoibleAppTheme {
+        val navController = rememberNavController()
+        FavoritesScreen(navController = navController)
+    }
+}
 @Preview(showBackground = true)
 @Composable
 fun RecipeCardPreview() {
@@ -1175,6 +1586,7 @@ fun RecipeCardPreview() {
                     foodName = "Classic Beef Adobo",
                     foodType = "Meat, Savory",
                     authorId = "chef_mcl",
+                    authorName = "Raphael Correa",
                     imgUrl = "",
                     title = "Classic Beef Adobo",
                     description = "A savory Filipino dish made with beef braised in soy sauce and vinegar.",
@@ -1194,6 +1606,7 @@ fun RecipeCardPreview() {
                     foodName = "Sinigang na Baboy",
                     foodType = "Soup, Sour",
                     authorId = "lola_cooks",
+                    authorName = "Raphael Correa",
                     imgUrl = "",
                     title = "Sinigang na Baboy",
                     description = "A sour tamarind-based soup with pork and vegetables.",
@@ -1205,6 +1618,86 @@ fun RecipeCardPreview() {
                 onFavoriteClick = {},
                 onCardClick = {}
             )
+        }
+    }
+}
+@Preview(showBackground = true, showSystemUi = true)
+@Composable
+fun SearchScreenPreview() {
+    RecipeMoibleAppTheme {
+        // Create dummy recipes for the preview
+        val mockRecipes = listOf(
+            Recipe(
+                id = 1,
+                foodName = "Chicken Adobo",
+                authorId = "chef_mcl",
+                authorName = "Chef Raphael",
+                foodType = "Meat",
+                title = "Classic Adobo",
+                description = "Traditional Filipino dish.",
+                imgUrl = "",
+                ingredients = listOf("Chicken", "Soy Sauce"),
+                instructions = listOf("Marinate", "Cook"),
+                difficulty = "Easy",
+                isFavorite = true
+            ),
+            Recipe(
+                id = 2,
+                foodName = "Sinigang na Baboy",
+                authorId = "chef_mcl",
+                authorName = "Lola Maria",
+                foodType = "Soup",
+                title = "Sour Soup",
+                description = "Sour tamarind soup.",
+                imgUrl = "",
+                ingredients = listOf("Pork", "Tamarind"),
+                instructions = listOf("Boil"),
+                difficulty = "Medium",
+                isFavorite = false
+            )
+        )
+
+        // We wrap the UI part of SearchScreen into a dummy version for the preview
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(OffWhite)
+        ) {
+            TopHeader()
+
+            // Mock Search Bar
+            OutlinedTextField(
+                value = "Chicken", // Simulating someone typed "Chicken"
+                onValueChange = {},
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                placeholder = { Text("Search recipes or authors...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                shape = RoundedCornerShape(12.dp),
+                singleLine = true
+            )
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Text("Search Results", style = MaterialTheme.typography.titleMedium, color = DarkForestGreen)
+                }
+
+                // Only showing the "Chicken" result to simulate search
+                items(mockRecipes.filter { it.foodName.contains("Chicken") }) { recipe ->
+                    RecipeCard(
+                        recipe = recipe,
+                        onFavoriteClick = {},
+                        onCardClick = {}
+                    )
+                }
+
+                item { Spacer(modifier = Modifier.height(80.dp)) }
+            }
         }
     }
 }
@@ -1388,11 +1881,11 @@ suspend fun postRecipe(
         client.close()
     }
 }
-suspend fun fetchAllRecipes(): List<Recipe> {
+suspend fun fetchAllRecipes(currentUserId: Int): List<Recipe> {
     val client = HttpClient(CIO)
     return try {
         // Replace with your actual endpoint for fetching all recipes
-        val response: HttpResponse = client.get("http://$BASE_URL/get_all_recipes.php")
+        val response: HttpResponse = client.get("http://$BASE_URL/get_all_recipes.php?user_id=$currentUserId")
         val stringBody = response.bodyAsText()
         val jsonArray = org.json.JSONArray(stringBody)
         val recipes = mutableListOf<Recipe>()
@@ -1401,9 +1894,11 @@ suspend fun fetchAllRecipes(): List<Recipe> {
             val item = jsonArray.getJSONObject(i)
             recipes.add(
                 Recipe(
+                    id = item.getInt("recipe_id"),
                     foodName = item.getString("food_name"),
                     foodType = item.optString("food_type", ""),
                     authorId = item.getString("author_id"),
+                    authorName = item.optString("author_name", "Unknown"),
                     imgUrl = item.optString("img_url", ""),
                     title = item.optString("title", ""),
                     description = item.optString("description", ""),
@@ -1411,7 +1906,7 @@ suspend fun fetchAllRecipes(): List<Recipe> {
                     ingredients = item.optString("ingredients").split(",").filter { it.isNotBlank() },
                     instructions = item.optString("instructions").split(",").filter { it.isNotBlank() },
                     difficulty = item.optString("difficulty", "easy"),
-                    isFavorite = false // Logic for favorites can be added later
+                    isFavorite = item.optInt("is_fav", 0) > 0
                 )
             )
         }
@@ -1422,7 +1917,34 @@ suspend fun fetchAllRecipes(): List<Recipe> {
         client.close()
     }
 }
+suspend fun toggleFavorite(context: Context, userId: Int, recipeId: Int): String? {
+    val client = HttpClient(CIO)
+    return try {
+        val response: HttpResponse = client.post("http://$BASE_URL/toggle_favorite.php") {
+            contentType(ContentType.Application.FormUrlEncoded)
+            setBody(FormDataContent(Parameters.build {
+                append("user_id", userId.toString())
+                append("recipe_id", recipeId.toString())
+            }))
+        }
 
+        val responseText = response.bodyAsText()
+
+        // DEBUG: Check if the response starts with HTML instead of JSON
+        if (responseText.trim().startsWith("<")) {
+            println("SERVER ERROR HTML: $responseText")
+            return null
+        }
+
+        val json = JSONObject(responseText)
+        if (json.getString("status") == "success") json.getString("action") else null
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    } finally {
+        client.close()
+    }
+}
 
 @Preview(showBackground = true)
 @Composable
