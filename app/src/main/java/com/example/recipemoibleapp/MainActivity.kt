@@ -104,6 +104,7 @@ import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.request.get
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import org.json.JSONArray
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
@@ -121,6 +122,7 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.material.icons.automirrored.filled.Logout
 
 
 val SalmonRed = Color(0xFFD96868)
@@ -358,7 +360,7 @@ fun SignUpScreen(onSignUpSuccess: () -> Unit, onBackToLogin: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController) { // Added navController parameter\
+fun HomeScreen(navController: NavController, onLogout: () -> Unit) { // Added navController parameter\
     val context = LocalContext.current
 
     val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
@@ -384,7 +386,7 @@ fun HomeScreen(navController: NavController) { // Added navController parameter\
 //        ) {
 //            Text("Make IT", color = Color.White, style = MaterialTheme.typography.titleLarge)
 //        }
-        TopHeader()
+        TopHeader(onLogoutClick = onLogout)
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -691,14 +693,14 @@ fun CreateRecipeScreen(currentAuthorId: Int,onCancel: () -> Unit, onPost: (Recip
 }
 
 @Composable
-fun ProfileScreen(navController: NavController, userName: String) {
+fun ProfileScreen(navController: NavController, userName: String, onLogout: () -> Unit) {
     // Wrap in a Column without extra padding at the top level
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(OffWhite)
     ) {
-        TopHeader() // This will now sit correctly at the top
+        TopHeader(onLogoutClick = onLogout) // This will now sit correctly at the top
 
         Column(
             modifier = Modifier
@@ -764,7 +766,7 @@ fun ProfileScreen(navController: NavController, userName: String) {
     }
 }
 @Composable
-fun UserRecipesScreen(navController: NavController) {
+fun UserRecipesScreen(navController: NavController, onLogout: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
@@ -780,7 +782,7 @@ fun UserRecipesScreen(navController: NavController) {
     }
 
     Scaffold(
-        topBar = { TopHeader() },
+        topBar = { TopHeader(onLogoutClick = onLogout) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { navController.navigate("create_recipe") },
@@ -829,7 +831,7 @@ fun UserRecipesScreen(navController: NavController) {
 }
 
 @Composable
-fun FavoritesScreen(navController: NavController) {
+fun FavoritesScreen(navController: NavController, onLogout: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
@@ -843,7 +845,7 @@ fun FavoritesScreen(navController: NavController) {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(OffWhite)) {
-        TopHeader()
+        TopHeader(onLogoutClick = onLogout)
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(16.dp),
@@ -883,7 +885,7 @@ fun FavoritesScreen(navController: NavController) {
 }
 
 @Composable
-fun SearchScreen(navController: NavController) {
+fun SearchScreen(navController: NavController, onLogout: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
@@ -907,7 +909,7 @@ fun SearchScreen(navController: NavController) {
             .fillMaxSize()
             .background(OffWhite)
     ) {
-        TopHeader()
+        TopHeader(onLogoutClick = onLogout)
 
         // Search Bar Section
         OutlinedTextField(
@@ -1031,7 +1033,7 @@ fun RecipeDetailScreen(recipeId: Int, navController: NavController) {
                             // Difficulty Chip
                             SuggestionChip(
                                 onClick = { },
-                                label = { Text(r.difficulty.uppercase()) },
+                                label = { Text(r.difficulty) },
                                 colors = SuggestionChipDefaults.suggestionChipColors(
                                     containerColor = SalmonRed,
                                     labelColor = Color.White
@@ -1306,14 +1308,34 @@ fun FloatingBottomBar(navController: NavController) {
 }
 
 @Composable
-fun TopHeader(title: String = "Make IT") {
+fun TopHeader(
+    title: String = "Make IT",
+    onLogoutClick: () -> Unit // Add a lambda for the click action
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(DarkForestGreen)
-            .padding(top = 32.dp, bottom = 16.dp, start = 16.dp, end = 16.dp)
+            .padding(top = 32.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
+        contentAlignment = Alignment.CenterStart // Title stays on the left
     ) {
-        Text(title, color = Color.White, style = MaterialTheme.typography.titleLarge)
+        Text(
+            text = title,
+            color = Color.White,
+            style = MaterialTheme.typography.titleLarge
+        )
+
+        // Logout Button at the right edge
+        IconButton(
+            onClick = onLogoutClick,
+            modifier = Modifier.align(Alignment.CenterEnd)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Logout,
+                contentDescription = "Logout",
+                tint = Color.White
+            )
+        }
     }
 }
 @Composable
@@ -1326,6 +1348,15 @@ fun AppNavigation() {
     val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
     val savedUserId = sharedPref.getInt("user_id", -1)
     val savedUsername = sharedPref.getString("username", "Guest") ?: "Guest"
+    val performLogout = {
+        val sharedPref = context.getSharedPreferences("UserSession", Context.MODE_PRIVATE)
+        sharedPref.edit().clear().apply() // Wipes the user_id and username
+
+        navController.navigate("login") {
+            // This clears the entire backstack so they can't "Go Back" into the app
+            popUpTo(0) { inclusive = true }
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -1352,10 +1383,10 @@ fun AppNavigation() {
                 )
             }
             composable("home") {
-                HomeScreen(navController = navController)
+                HomeScreen(navController = navController,onLogout = performLogout)
             }
             composable("profile") {
-                ProfileScreen(navController = navController, userName = savedUsername)
+                ProfileScreen(navController = navController, userName = savedUsername,onLogout = performLogout)
             }
             composable("create_recipe") {
                 CreateRecipeScreen(
@@ -1365,13 +1396,13 @@ fun AppNavigation() {
                 )
             }
             composable("user_recipes") {
-                UserRecipesScreen(navController = navController)
+                UserRecipesScreen(navController = navController,onLogout = performLogout)
             }
             composable("favorites") {
-                FavoritesScreen(navController = navController)
+                FavoritesScreen(navController = navController,onLogout = performLogout)
             }
             composable("search") {
-                SearchScreen(navController = navController)
+                SearchScreen(navController = navController,onLogout = performLogout)
             }
             composable(
                 route = "recipe_detail/{recipeId}",
@@ -1427,7 +1458,7 @@ fun SignUpScreenPreview() {
 fun HomeScreenPreview() {
     RecipeMoibleAppTheme {
         // Use a dummy controller for the preview
-        HomeScreen(navController = rememberNavController())
+        HomeScreen(navController = rememberNavController(),onLogout = {})
     }
 }
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1552,7 +1583,7 @@ fun ProfileScreenPreview() {
         val navController = rememberNavController()
         // Mocking the screen inside a Column to simulate the background
 
-            ProfileScreen(navController = navController, userName = "Raphael Correa")
+            ProfileScreen(navController = navController, userName = "Raphael Correa",onLogout = {})
 
     }
 }
@@ -1561,7 +1592,7 @@ fun ProfileScreenPreview() {
 fun UserRecipesScreenPreview() {
     RecipeMoibleAppTheme {
         val navController = rememberNavController()
-        UserRecipesScreen(navController = navController)
+        UserRecipesScreen(navController = navController,onLogout = {})
     }
 }
 @Preview(showSystemUi = true)
@@ -1569,7 +1600,7 @@ fun UserRecipesScreenPreview() {
 fun FavoritesScreenPreview() {
     RecipeMoibleAppTheme {
         val navController = rememberNavController()
-        FavoritesScreen(navController = navController)
+        FavoritesScreen(navController = navController,onLogout = {})
     }
 }
 @Preview(showBackground = true)
@@ -1663,7 +1694,10 @@ fun SearchScreenPreview() {
                 .fillMaxSize()
                 .background(OffWhite)
         ) {
-            TopHeader()
+            TopHeader(
+                title = "Search Recipes",
+                onLogoutClick = { /* Do nothing in preview */ }
+            )
 
             // Mock Search Bar
             OutlinedTextField(
@@ -1887,7 +1921,7 @@ suspend fun fetchAllRecipes(currentUserId: Int): List<Recipe> {
         // Replace with your actual endpoint for fetching all recipes
         val response: HttpResponse = client.get("http://$BASE_URL/get_all_recipes.php?user_id=$currentUserId")
         val stringBody = response.bodyAsText()
-        val jsonArray = org.json.JSONArray(stringBody)
+        val jsonArray = JSONArray(stringBody)
         val recipes = mutableListOf<Recipe>()
 
         for (i in 0 until jsonArray.length()) {
