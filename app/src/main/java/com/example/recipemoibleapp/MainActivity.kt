@@ -103,9 +103,14 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import androidx.navigation.compose.currentBackStackEntryAsState
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
 
 
 val SalmonRed = Color(0xFFD96868)
@@ -341,47 +346,51 @@ fun SignUpScreen(onSignUpSuccess: () -> Unit, onBackToLogin: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController) { // Added navController parameter
-    val recipeList = listOf(
-        Recipe(
-            foodName = "Chicken Adobo",
-            foodType = "Meat, Savory",
-            authorId = "user123",
-            imgUrl = "https://example.com/adobo.jpg",
-            title = "Classic Chicken Adobo",
-            description = "A savory Filipino dish made with chicken braised in soy sauce and vinegar.",
-            ingredients = listOf("Chicken", "Soy Sauce", "Vinegar", "Garlic", "Bay Leaves"),
-            instructions = listOf("Marinate chicken", "Simmer until tender", "Serve with rice"),
-            difficulty = "easy",
-            isFavorite = false
-        ),
-        Recipe(
-            foodName = "Beef Sinigang",
-            foodType = "Soup, Sour",
-            authorId = "chef_mcl",
-            imgUrl = "https://example.com/sinigang.jpg",
-            title = "Beef Sinigang",
-            description = "A sour tamarind-based soup with beef and vegetables.",
-            ingredients = listOf("Beef", "Tamarind", "Kangkong", "Radish", "Tomatoes"),
-            instructions = listOf("Boil beef until tender", "Add tamarind and vegetables", "Simmer and serve hot"),
-            difficulty = "medium",
-            isFavorite = false
-        ),
-        Recipe(
-            foodName = "Pork Lumpia",
-            foodType = "Appetizer, Fried",
-            authorId = "lola_cooks",
-            imgUrl = "https://example.com/lumpia.jpg",
-            title = "Crispy Pork Lumpia",
-            description = "Fried spring rolls filled with seasoned pork and vegetables.",
-            ingredients = listOf("Ground Pork", "Carrots", "Cabbage", "Spring Roll Wrappers"),
-            instructions = listOf("Prepare filling", "Wrap in lumpia wrappers", "Deep fry until golden"),
-            difficulty = "easy",
-            isFavorite = false
-        )
-    )
+fun HomeScreen(navController: NavController) { // Added navController parameter\
+    var recipeList by remember { mutableStateOf<List<Recipe>>(emptyList()) }
+    val scope = rememberCoroutineScope()
+//    val recipeList = listOf(
+//        Recipe(
+//            foodName = "Chicken Adobo",
+//            foodType = "Meat, Savory",
+//            authorId = "user123",
+//            imgUrl = "https://example.com/adobo.jpg",
+//            title = "Classic Chicken Adobo",
+//            description = "A savory Filipino dish made with chicken braised in soy sauce and vinegar.",
+//            ingredients = listOf("Chicken", "Soy Sauce", "Vinegar", "Garlic", "Bay Leaves"),
+//            instructions = listOf("Marinate chicken", "Simmer until tender", "Serve with rice"),
+//            difficulty = "easy",
+//            isFavorite = false
+//        ),
+//        Recipe(
+//            foodName = "Beef Sinigang",
+//            foodType = "Soup, Sour",
+//            authorId = "chef_mcl",
+//            imgUrl = "https://example.com/sinigang.jpg",
+//            title = "Beef Sinigang",
+//            description = "A sour tamarind-based soup with beef and vegetables.",
+//            ingredients = listOf("Beef", "Tamarind", "Kangkong", "Radish", "Tomatoes"),
+//            instructions = listOf("Boil beef until tender", "Add tamarind and vegetables", "Simmer and serve hot"),
+//            difficulty = "medium",
+//            isFavorite = false
+//        ),
+//        Recipe(
+//            foodName = "Pork Lumpia",
+//            foodType = "Appetizer, Fried",
+//            authorId = "lola_cooks",
+//            imgUrl = "https://example.com/lumpia.jpg",
+//            title = "Crispy Pork Lumpia",
+//            description = "Fried spring rolls filled with seasoned pork and vegetables.",
+//            ingredients = listOf("Ground Pork", "Carrots", "Cabbage", "Spring Roll Wrappers"),
+//            instructions = listOf("Prepare filling", "Wrap in lumpia wrappers", "Deep fry until golden"),
+//            difficulty = "easy",
+//            isFavorite = false
+//        )
+//    )
 
-
+    LaunchedEffect(Unit) {
+        recipeList = fetchAllRecipes()
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -411,7 +420,11 @@ fun HomeScreen(navController: NavController) { // Added navController parameter
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
-
+            if (recipeList.isEmpty()) {
+                item {
+                    Text("Loading recipes...", color = Color.Gray)
+                }
+            }
             items(recipeList) { recipe ->
                 RecipeCard(
                     recipe = recipe,
@@ -428,7 +441,7 @@ fun HomeScreen(navController: NavController) { // Added navController parameter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
+fun CreateRecipeScreen(currentAuthorId: Int,onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
     val scope = rememberCoroutineScope()
     val mContext = LocalContext.current
 
@@ -628,7 +641,7 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
                             val recipe = Recipe(
                                 foodName = name,
                                 foodType = foodType, // collect from UI or set default
-                                authorId = authorId,
+                                authorId = currentAuthorId.toString(),
                                 imgUrl = selectedImageUri?.toString() ?: "", // ✅ safe fallback
                                 title = name,
                                 description = description,
@@ -643,6 +656,7 @@ fun CreateRecipeScreen(onCancel: () -> Unit, onPost: (Recipe) -> Unit) {
                                 postRecipe(
                                     context = mContext,
                                     recipe = recipe,
+                                    currentAuthorId = currentAuthorId,
                                     onSuccess = { onPost(recipe) },
                                     onError = { msg ->
                                         Toast.makeText(mContext, "Failed: $msg", Toast.LENGTH_SHORT)
@@ -993,7 +1007,7 @@ fun FloatingBottomBar(navController: NavController) {
                         Text(
                             text = item.label,
                             color = if (isSelected) DarkForestGreen else Color.Gray,
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                             maxLines = 1
                         )
                     }
@@ -1016,10 +1030,14 @@ fun TopHeader(title: String = "Make IT") {
 }
 @Composable
 fun AppNavigation() {
+    val context = LocalContext.current
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val showBottomBar = currentRoute in listOf("home", "profile", "favorites", "search", "user_recipes")
+    val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
+    val savedUserId = sharedPref.getInt("user_id", -1)
+    val savedUsername = sharedPref.getString("username", "Guest") ?: "Guest"
 
     Scaffold(
         bottomBar = {
@@ -1049,10 +1067,11 @@ fun AppNavigation() {
                 HomeScreen(navController = navController)
             }
             composable("profile") {
-                ProfileScreen(navController = navController, userName = "Raphael")
+                ProfileScreen(navController = navController, userName = savedUsername)
             }
             composable("create_recipe") {
                 CreateRecipeScreen(
+                    currentAuthorId = savedUserId,
                     onCancel = { navController.popBackStack() },
                     onPost = { navController.navigate("user_recipes") } // Navigate to your list after posting
                 )
@@ -1117,6 +1136,7 @@ fun CreateRecipeScreenPreview() {
     RecipeMoibleAppTheme {
         // We pass empty lambdas for onCancel and onPost for the preview
         CreateRecipeScreen(
+            currentAuthorId =1,
             onCancel = {},
             onPost = {}
         )
@@ -1287,10 +1307,15 @@ suspend fun KTOR_Login(
             if (status == "success") {
                 val role = json.optString("role")
                 val userId = json.optInt("id") // Extract the ID from PHP
+                val username = json.optString("username")
 
                 // Save ID locally for "My Recipes" and "Favorites"
                 val sharedPref = context.getSharedPreferences("UserSession", Context.MODE_PRIVATE)
-                sharedPref.edit().putInt("user_id", userId).apply()
+                sharedPref.edit().apply {
+                    putInt("user_id", userId)
+                    putString("username", username)
+                    apply()
+                }
 
                 Toast.makeText(context, "Welcome back, $username!", Toast.LENGTH_SHORT).show()
                 onLoginSuccess()
@@ -1313,25 +1338,37 @@ suspend fun KTOR_Login(
 suspend fun postRecipe(
     context: Context,
     recipe: Recipe,
+    currentAuthorId: Int,
     onSuccess: () -> Unit,
     onError: (String) -> Unit
 ) {
     val client = HttpClient(CIO)
     try {
-        val response: HttpResponse = client.post("http://$BASE_URL/post_recipe.php") {
-            setBody(FormDataContent(Parameters.build {
+        val imageUri = recipe.imgUrl.toUri()
+        // Convert the URI into bytes for uploading
+        val imageBytes = context.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
+        val response: HttpResponse = client.submitFormWithBinaryData(
+            url = "http://$BASE_URL/post_recipe.php",
+            formData = formData {
                 append("food_name", recipe.foodName)
                 append("food_type", recipe.foodType)
-                append("author_id", recipe.authorId)
-                append("img_url", recipe.imgUrl)
+                append("author_id", currentAuthorId.toString())
+//                append("img_url", recipe.imgUrl)
                 append("title", recipe.title)
                 append("description", recipe.description)
                 append("ingredients", recipe.ingredients.joinToString(","))
                 append("instructions", recipe.instructions.joinToString(","))
-                append("difficulty", recipe.difficulty)
-                append("is_favorite", recipe.isFavorite.toString())
-            }))
-        }
+                append("difficulty", recipe.difficulty.lowercase())
+//                append("is_favorite", recipe.isFavorite.toString())
+
+                if (imageBytes != null) {
+                    append("image", imageBytes, Headers.build {
+                        append(HttpHeaders.ContentType, "image/jpeg")
+                        append(HttpHeaders.ContentDisposition, "filename=\"recipe_img.jpg\"")
+                    })
+                }
+            }
+        )
 
         val stringBody = response.bodyAsText()
         val json = JSONObject(stringBody)
@@ -1351,7 +1388,40 @@ suspend fun postRecipe(
         client.close()
     }
 }
+suspend fun fetchAllRecipes(): List<Recipe> {
+    val client = HttpClient(CIO)
+    return try {
+        // Replace with your actual endpoint for fetching all recipes
+        val response: HttpResponse = client.get("http://$BASE_URL/get_all_recipes.php")
+        val stringBody = response.bodyAsText()
+        val jsonArray = org.json.JSONArray(stringBody)
+        val recipes = mutableListOf<Recipe>()
 
+        for (i in 0 until jsonArray.length()) {
+            val item = jsonArray.getJSONObject(i)
+            recipes.add(
+                Recipe(
+                    foodName = item.getString("food_name"),
+                    foodType = item.optString("food_type", ""),
+                    authorId = item.getString("author_id"),
+                    imgUrl = item.optString("img_url", ""),
+                    title = item.optString("title", ""),
+                    description = item.optString("description", ""),
+                    // Splitting the comma-separated strings back into Lists
+                    ingredients = item.optString("ingredients").split(",").filter { it.isNotBlank() },
+                    instructions = item.optString("instructions").split(",").filter { it.isNotBlank() },
+                    difficulty = item.optString("difficulty", "easy"),
+                    isFavorite = false // Logic for favorites can be added later
+                )
+            )
+        }
+        recipes
+    } catch (e: Exception) {
+        emptyList()
+    } finally {
+        client.close()
+    }
+}
 
 
 @Preview(showBackground = true)
