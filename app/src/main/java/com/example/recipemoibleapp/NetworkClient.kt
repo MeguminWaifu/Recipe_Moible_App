@@ -7,7 +7,7 @@ import kotlinx.serialization.json.Json
 val client = HttpClient(Android) {
     install(ContentNegotiation) {
         json(Json {
-            ignoreUnknownKeys = true // Prevents crashing if the API sends extra data
+            ignoreUnknownKeys = true
             prettyPrint = true
         })
     }

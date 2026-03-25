@@ -159,7 +159,7 @@ val navItems = listOf(
     NavItem("Home", Icons.Default.Home, "home"),
     NavItem("Search", Icons.Default.Search, "search"),
     NavItem("Favorites", Icons.Default.Favorite, "favorites"),
-    NavItem("My Recipes", Icons.Default.List, "user_recipes") // New Item
+    NavItem("My Recipes", Icons.Default.List, "user_recipes")
 )
 
 
@@ -169,7 +169,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             RecipeMoibleAppTheme {
-                // Simply call your navigation wrapper
                 AppNavigation()
             }
         }
@@ -187,7 +186,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToSignUp: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(LogoBackground), // Set the background to match your logo
+            .background(LogoBackground),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -213,7 +212,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit, onNavigateToSignUp: () -> Unit) {
                     .fillMaxWidth(0.85f)
                     .padding(16.dp),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = OffWhite) // Keep the container color unaffected
+                colors = CardDefaults.cardColors(containerColor = OffWhite)
             ) {
                 Column(
                     modifier = Modifier.padding(24.dp),
@@ -360,7 +359,7 @@ fun SignUpScreen(onSignUpSuccess: () -> Unit, onBackToLogin: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavController, onLogout: () -> Unit) { // Added navController parameter\
+fun HomeScreen(navController: NavController, onLogout: () -> Unit) {
     val context = LocalContext.current
 
     val sharedPref = remember { context.getSharedPreferences("UserSession", Context.MODE_PRIVATE) }
@@ -370,7 +369,6 @@ fun HomeScreen(navController: NavController, onLogout: () -> Unit) { // Added na
 
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    // Call the reusable composable here
     LogoutDialog(
         showDialog = showLogoutDialog,
         onDismiss = { showLogoutDialog = false },
@@ -397,7 +395,7 @@ fun HomeScreen(navController: NavController, onLogout: () -> Unit) { // Added na
 //        ) {
 //            Text("Make IT", color = Color.White, style = MaterialTheme.typography.titleLarge)
 //        }
-        TopHeader(onLogoutClick = { showLogoutDialog = true }) // Trigger the DIALOG, not the logout yet
+        TopHeader(onLogoutClick = { showLogoutDialog = true })
 
 
         LazyColumn(
@@ -423,11 +421,8 @@ fun HomeScreen(navController: NavController, onLogout: () -> Unit) { // Added na
                     recipe = recipe,
                     onFavoriteClick = {
                         scope.launch {
-                            // userId and recipe.id must match what the PHP script expects
                             val action = toggleFavorite(context, currentUserId, recipe.id)
-
                             if (action != null) {
-                                // Create a brand new list using .map to force the UI to refresh
                                 val updatedList = recipeList.map { existingRecipe ->
                                     if (existingRecipe.id == recipe.id) {
                                         existingRecipe.copy(isFavorite = (action == "favorited"))
@@ -435,14 +430,14 @@ fun HomeScreen(navController: NavController, onLogout: () -> Unit) { // Added na
                                         existingRecipe
                                     }
                                 }
-                                recipeList = updatedList // Assigning the new list triggers the UI update
+                                recipeList = updatedList
                             }
                         }
                     },
                     onCardClick = { navController.navigate("recipe_detail/${recipe.id}") }
                 )
             }
-            // Add extra space at the bottom so the floating nav doesn't cover the last card
+            // Bottom extra space for navigation bar
             item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
@@ -518,7 +513,7 @@ fun CreateRecipeScreen(currentAuthorId: Int,onCancel: () -> Unit, onPost: (Recip
 //                )
             }
 
-            // Difficulty section wrapped in item{}
+            // Difficulty section
             item {
                 Column {
                     Text("Difficulty", fontWeight = FontWeight.Bold, color = DarkForestGreen)
@@ -556,7 +551,7 @@ fun CreateRecipeScreen(currentAuthorId: Int,onCancel: () -> Unit, onPost: (Recip
                     Text("• $ingredient", modifier = Modifier.weight(1f))
                     IconButton(onClick = { ingredients.remove(ingredient) }) {
                         Icon(
-                            imageVector = Icons.Default.Delete, // Make sure to import Icons.Default.Delete
+                            imageVector = Icons.Default.Delete,
                             contentDescription = "Delete",
                             tint = SalmonRed
                         )
@@ -612,13 +607,12 @@ fun CreateRecipeScreen(currentAuthorId: Int,onCancel: () -> Unit, onPost: (Recip
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp)
-                        .clickable { imagePicker.launch("image/*") }, // Triggers the picker
+                        .clickable { imagePicker.launch("image/*") },
                     colors = CardDefaults.cardColors(containerColor = Color.LightGray),
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                         if (selectedImageUri != null) {
-                            // Display the selected image using AsyncImage (Coil)
                             AsyncImage(
                                 model = selectedImageUri,
                                 contentDescription = "Selected Image",
@@ -651,9 +645,9 @@ fun CreateRecipeScreen(currentAuthorId: Int,onCancel: () -> Unit, onPost: (Recip
                             val recipe = Recipe(
 //                                id = item.getInt("id"),
                                 foodName = name,
-                                foodType = foodType, // collect from UI or set default
+                                foodType = foodType,
                                 authorId = currentAuthorId.toString(),
-                                imgUrl = selectedImageUri?.toString() ?: "", // ✅ safe fallback
+                                imgUrl = selectedImageUri?.toString() ?: "", // ✅
                                 title = name,
                                 description = description,
                                 ingredients = ingredients.toList(),
@@ -708,7 +702,6 @@ fun CreateRecipeScreen(currentAuthorId: Int,onCancel: () -> Unit, onPost: (Recip
 fun ProfileScreen(navController: NavController, userName: String, onLogout: () -> Unit) {
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    // Call the reusable composable here
     LogoutDialog(
         showDialog = showLogoutDialog,
         onDismiss = { showLogoutDialog = false },
@@ -717,13 +710,12 @@ fun ProfileScreen(navController: NavController, userName: String, onLogout: () -
             onLogout()
         }
     )
-    // Wrap in a Column without extra padding at the top level
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(OffWhite)
     ) {
-        TopHeader(onLogoutClick = { showLogoutDialog = true }) // This will now sit correctly at the top
+        TopHeader(onLogoutClick = { showLogoutDialog = true })
 
         Column(
             modifier = Modifier
@@ -748,18 +740,18 @@ fun ProfileScreen(navController: NavController, userName: String, onLogout: () -
                     modifier = Modifier
                         .size(80.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFE0D7F7)),
+                        .background(SageGreen),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
                         modifier = Modifier.size(50.dp),
-                        tint = Color(0xFF6750A4)
+                        tint = SalmonRed
                     )
                 }
                 Spacer(modifier = Modifier.width(16.dp))
-                Text(text = userName, style = MaterialTheme.typography.headlineSmall, color = DarkForestGreen)
+                Text(text = userName, style = MaterialTheme.typography.headlineSmall, color = SalmonRed)
             }
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -770,11 +762,10 @@ fun ProfileScreen(navController: NavController, userName: String, onLogout: () -
                 subtitle = "Your liked recipes",
                 onClick = {
                     navController.navigate("favorites") {
-                        // Pop up to the home screen to avoid building a huge stack
+                        // to avoid stacking
                         popUpTo("home") { saveState = true }
-                        // Avoid multiple copies of the same destination
                         launchSingleTop = true
-                        // Restore state when re-selecting a previously selected item
+
                         restoreState = true
                     }
                 }
@@ -785,11 +776,10 @@ fun ProfileScreen(navController: NavController, userName: String, onLogout: () -
                 subtitle = "Recipes you've shared",
                 onClick = {
                     navController.navigate("user_recipes") {
-                        // Pop up to the home screen to avoid building a huge stack
+                        // to avoid stack
                         popUpTo("home") { saveState = true }
-                        // Avoid multiple copies of the same destination
                         launchSingleTop = true
-                        // Restore state when re-selecting a previously selected item
+
                         restoreState = true
                     }
                 }
@@ -810,7 +800,6 @@ fun UserRecipesScreen(navController: NavController, onLogout: () -> Unit) {
     val myRecipes = allRecipes.filter { it.authorId == currentUserId.toString() }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    // Call the reusable composable here
     LogoutDialog(
         showDialog = showLogoutDialog,
         onDismiss = { showLogoutDialog = false },
@@ -883,7 +872,6 @@ fun FavoritesScreen(navController: NavController, onLogout: () -> Unit) {
     val favoriteRecipes = allRecipes.filter { it.isFavorite }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    // Call the reusable composable here
     LogoutDialog(
         showDialog = showLogoutDialog,
         onDismiss = { showLogoutDialog = false },
@@ -946,14 +934,13 @@ fun SearchScreen(navController: NavController, onLogout: () -> Unit) {
     var searchQuery by remember { mutableStateOf("") }
     var allRecipes by remember { mutableStateOf<List<Recipe>>(emptyList()) }
 
-    // Logic: Filter by Food Name OR Author Name based on the search query
+    // Filter by Food Name OR Author Name based on the search query
     val filteredRecipes = allRecipes.filter { recipe ->
         recipe.foodName.contains(searchQuery, ignoreCase = true) ||
                 recipe.authorName.contains(searchQuery, ignoreCase = true)
     }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    // Call the reusable composable here
     LogoutDialog(
         showDialog = showLogoutDialog,
         onDismiss = { showLogoutDialog = false },
@@ -973,7 +960,7 @@ fun SearchScreen(navController: NavController, onLogout: () -> Unit) {
     ) {
         TopHeader(onLogoutClick = { showLogoutDialog = true })
 
-        // Search Bar Section
+        // Search Bar
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
@@ -1055,12 +1042,9 @@ fun RecipeDetailScreen(recipeId: Int, navController: NavController) {
                             )
                         }
                     },
-                    // Use colors instead of backgroundColor
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = OffWhite
                     )
-                    // Elevation is now typically handled via the 'scrollBehavior' or
-                    // wrapping the AppBar in a Surface with tonalElevation
                 )
             }
         ) { padding ->
@@ -1070,7 +1054,7 @@ fun RecipeDetailScreen(recipeId: Int, navController: NavController) {
                     .padding(padding)
                     .background(OffWhite)
             ) {
-                // 1. Large Image Header
+                //Large Image Header
                 item {
                     AsyncImage(
                         model = r.imgUrl,
@@ -1082,7 +1066,7 @@ fun RecipeDetailScreen(recipeId: Int, navController: NavController) {
                     )
                 }
 
-                // 2. Info Section (Title, Author, Difficulty)
+                // Info Section (Title, Author, Difficulty)
                 item {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(r.title, style = MaterialTheme.typography.headlineMedium, color = DarkForestGreen)
@@ -1123,7 +1107,7 @@ fun RecipeDetailScreen(recipeId: Int, navController: NavController) {
                     }
                 }
 
-                // 3. Ingredients Section
+                //Ingredients Section
                 item {
                     Text("Ingredients",
                         style = MaterialTheme.typography.titleLarge,
@@ -1139,7 +1123,7 @@ fun RecipeDetailScreen(recipeId: Int, navController: NavController) {
                     }
                 }
 
-                // 4. Instructions Section
+                //Instructions Section
                 item {
                     Text("Instructions",
                         style = MaterialTheme.typography.titleLarge,
@@ -1187,7 +1171,7 @@ fun LogoutDialog(
                 }
             },
             containerColor = OffWhite,
-            shape = RoundedCornerShape(28.dp) // Standard M3 dialog rounding
+            shape = RoundedCornerShape(28.dp)
         )
     }
 }
@@ -1197,7 +1181,7 @@ fun ProfileNavCard(title: String, subtitle: String, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF2F0F7)), // Light grayish/purple
+        colors = CardDefaults.cardColors(containerColor = SageGreen),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -1209,17 +1193,17 @@ fun ProfileNavCard(title: String, subtitle: String, onClick: () -> Unit) {
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFEADDFF)),
+                    .background(OffWhite ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = "A", color = Color(0xFF21005D))
+                Text(text = "A", color = SalmonRed)
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
             Column {
-                Text(text = title, fontWeight = FontWeight.Bold)
-                Text(text = subtitle, style = MaterialTheme.typography.bodySmall)
+                Text(text = title, fontWeight = FontWeight.Bold,color = OffWhite)
+                Text(text = subtitle, style = MaterialTheme.typography.bodySmall,color = OffWhite)
             }
         }
     }
@@ -1240,7 +1224,7 @@ fun RecipeCard(
     ) {
         Column {
             // IMAGE SECTION
-            // Using Coil's AsyncImage (Make sure you have the Coil dependency!)
+            // Using Coil's AsyncImage
             AsyncImage(
                 model = recipe.imgUrl,
                 contentDescription = recipe.foodName,
@@ -1263,18 +1247,18 @@ fun RecipeCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = recipe.foodName, // Match your data class 'foodName'
+                        text = recipe.foodName,
                         style = MaterialTheme.typography.titleMedium,
                         color = Color.Black
                     )
                     Text(
-                        text = recipe.foodType, // Match your data class 'foodType'
+                        text = recipe.foodType,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color.DarkGray
                     )
                     Text(
-                        text = "By: ${recipe.authorName}", // Match your data class 'author'
+                        text = "By: ${recipe.authorName}",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
@@ -1285,7 +1269,6 @@ fun RecipeCard(
                         imageVector = if (recipe.isFavorite) Icons.Filled.Star else Icons.Outlined.Star,
                         contentDescription = "Favorite",
                         tint = if (recipe.isFavorite) SalmonRed else Color.DarkGray
-                        // Ensure no Modifier.clickable is here as it will conflict with IconButton
                     )
                 }
             }
@@ -1321,12 +1304,12 @@ fun InputModal(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                // "Add" button placed right under the text field for quick thumb access
+
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = {
                         if (textInput.isNotBlank()) {
                             onAdd(textInput)
-                            textInput = "" // Clear for next input
+                            textInput = ""
                         }
                     }) {
                         Text("Add to List", color = SageGreen, fontWeight = FontWeight.Bold)
@@ -1362,7 +1345,7 @@ fun FloatingBottomBar(navController: NavController) {
         NavigationBar(
             containerColor = Color.White,
             tonalElevation = 10.dp,
-            modifier = Modifier.clip(RoundedCornerShape(30.dp)) // Rounded edges
+            modifier = Modifier.clip(RoundedCornerShape(30.dp))
         ) {
             navItems.forEach { item ->
                 val isSelected = currentRoute == item.route
@@ -1402,14 +1385,14 @@ fun FloatingBottomBar(navController: NavController) {
 @Composable
 fun TopHeader(
     title: String = "Make IT",
-    onLogoutClick: () -> Unit // Add a lambda for the click action
+    onLogoutClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .background(DarkForestGreen)
             .padding(top = 32.dp, bottom = 16.dp, start = 16.dp, end = 16.dp),
-        contentAlignment = Alignment.CenterStart // Title stays on the left
+        contentAlignment = Alignment.CenterStart
     ) {
         Text(
             text = title,
@@ -1445,7 +1428,6 @@ fun AppNavigation() {
         sharedPref.edit().clear().apply() // Wipes the user_id and username
 
         navController.navigate("login") {
-            // This clears the entire backstack so they can't "Go Back" into the app
             popUpTo(0) { inclusive = true }
         }
     }
@@ -1484,7 +1466,7 @@ fun AppNavigation() {
                 CreateRecipeScreen(
                     currentAuthorId = savedUserId,
                     onCancel = { navController.popBackStack() },
-                    onPost = { navController.navigate("user_recipes") } // Navigate to your list after posting
+                    onPost = { navController.navigate("user_recipes") }
                 )
             }
             composable("user_recipes") {
@@ -1500,10 +1482,8 @@ fun AppNavigation() {
                 route = "recipe_detail/{recipeId}",
                 arguments = listOf(navArgument("recipeId") { type = NavType.IntType })
             ) { backStackEntry ->
-                // Extract the ID from the arguments
                 val recipeId = backStackEntry.arguments?.getInt("recipeId") ?: 0
 
-                // Pass the ID and the navController to the Detail Screen
                 RecipeDetailScreen(recipeId = recipeId, navController = navController)
             }
         }
@@ -1549,7 +1529,6 @@ fun SignUpScreenPreview() {
 @Composable
 fun HomeScreenPreview() {
     RecipeMoibleAppTheme {
-        // Use a dummy controller for the preview
         HomeScreen(navController = rememberNavController(),onLogout = {})
     }
 }
@@ -1565,7 +1544,7 @@ fun RecipeDetailScreenPreview() {
             foodType = "Meat",
             authorId = "1",
             authorName = "Raphael Correa",
-            imgUrl = "", // In preview, this will show a placeholder
+            imgUrl = "",
             title = "Savory Filipino Adobo",
             description = "A classic Filipino stew made with chicken, soy sauce, vinegar, and garlic. Perfect with steamed rice.",
             ingredients = listOf("1kg Chicken", "1/2 cup Soy Sauce", "1/3 cup Vinegar", "5 cloves Garlic", "2 Bay Leaves"),
@@ -1660,7 +1639,6 @@ fun RecipeDetailScreenPreview() {
 @Composable
 fun CreateRecipeScreenPreview() {
     RecipeMoibleAppTheme {
-        // We pass empty lambdas for onCancel and onPost for the preview
         CreateRecipeScreen(
             currentAuthorId =1,
             onCancel = {},
@@ -1673,10 +1651,7 @@ fun CreateRecipeScreenPreview() {
 fun ProfileScreenPreview() {
     RecipeMoibleAppTheme {
         val navController = rememberNavController()
-        // Mocking the screen inside a Column to simulate the background
-
             ProfileScreen(navController = navController, userName = "Raphael Correa",onLogout = {})
-
     }
 }
 @Preview(showSystemUi = true)
@@ -1780,7 +1755,7 @@ fun SearchScreenPreview() {
             )
         )
 
-        // We wrap the UI part of SearchScreen into a dummy version for the preview
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -1793,7 +1768,7 @@ fun SearchScreenPreview() {
 
             // Mock Search Bar
             OutlinedTextField(
-                value = "Chicken", // Simulating someone typed "Chicken"
+                value = "Chicken",
                 onValueChange = {},
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1813,7 +1788,7 @@ fun SearchScreenPreview() {
                     Text("Search Results", style = MaterialTheme.typography.titleMedium, color = DarkForestGreen)
                 }
 
-                // Only showing the "Chicken" result to simulate search
+
                 items(mockRecipes.filter { it.foodName.contains("Chicken") }) { recipe ->
                     RecipeCard(
                         recipe = recipe,
@@ -1847,14 +1822,14 @@ suspend fun KTOR_SignUp(context: Context, username: String, password: String) {
         }
     }
     try {
-        // 1. CLEAN URL: No question marks or variables in the string
+
         val url = "http://$BASE_URL/sign_up.php"
 
         val response: HttpResponse = client.post(url) {
-            // 2. SET CONTENT TYPE: Tells PHP to expect POST form data
+
             contentType(ContentType.Application.FormUrlEncoded)
 
-            // 3. SEND BODY: This populates $_POST on the server
+            // Send the data
             setBody(FormDataContent(Parameters.build {
                 append("username", username)
                 append("password", password)
@@ -1891,9 +1866,7 @@ suspend fun KTOR_Login(
 ) {
     val client = HttpClient(CIO) {
         engine {
-            // This is CRITICAL. Force HTTP 1.1 to match XAMPP's Apache
             https {
-                // Not needed for http, but good to have engine-level config
             }
         }
         install(HttpTimeout) {
@@ -2010,7 +1983,6 @@ suspend fun postRecipe(
 suspend fun fetchAllRecipes(currentUserId: Int): List<Recipe> {
     val client = HttpClient(CIO)
     return try {
-        // Replace with your actual endpoint for fetching all recipes
         val response: HttpResponse = client.get("http://$BASE_URL/get_all_recipes.php?user_id=$currentUserId")
         val stringBody = response.bodyAsText()
         val jsonArray = JSONArray(stringBody)
@@ -2056,7 +2028,7 @@ suspend fun toggleFavorite(context: Context, userId: Int, recipeId: Int): String
 
         val responseText = response.bodyAsText()
 
-        // DEBUG: Check if the response starts with HTML instead of JSON
+        // DEBUG
         if (responseText.trim().startsWith("<")) {
             println("SERVER ERROR HTML: $responseText")
             return null
@@ -2076,10 +2048,8 @@ suspend fun toggleFavorite(context: Context, userId: Int, recipeId: Int): String
 @Composable
 fun IngredientModalPreview() {
     RecipeMoibleAppTheme {
-        // Previewing the Ingredient version
         InputModal(
             title = "Add Ingredient",
-
             onDismiss = {},
             onAdd = {}
         )
@@ -2091,10 +2061,8 @@ fun IngredientModalPreview() {
 @Composable
 fun StepModalPreview() {
     RecipeMoibleAppTheme {
-        // Previewing the Step version (which has the 'Done' button)
         InputModal(
             title = "Add Step",
-
             onDismiss = {},
             onAdd = {}
         )
